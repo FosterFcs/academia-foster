@@ -1,0 +1,38 @@
+// TP-07 · Topografia
+Academia.modulo('tp',{
+sig:SIG,
+teoria:`<p>Todo levantamento topográfico vira uma lista de pontos com coordenadas: <b>E</b> (Este, eixo x) e <b>N</b> (Norte, eixo y). Com essa lista dá para calcular a área exata de um terreno, por mais torto que ele seja.</p>
+<div class="cols"><div class="conceito"><h4>Coordenadas</h4><p>Cada vértice do terreno tem um par (E, N) em metros. Em georreferenciamento, usamos o sistema UTM.</p></div>
+<div class="conceito"><h4>Azimute</h4><p>Ângulo de uma linha medido a partir do Norte, no sentido horário, de 0° a 360°.</p></div>
+<div class="conceito"><h4>Curva de nível</h4><p>Linha que liga pontos com a mesma cota (altura). Curvas próximas indicam terreno íngreme.</p></div></div>
+<h3>Fórmula de Gauss (das coordenadas)</h3>
+<div class="formula">2·A = Σ (Eᵢ · Nᵢ₊₁ − Eᵢ₊₁ · Nᵢ)     depois do último vértice volta ao primeiro</div>
+<div class="formula">Perímetro = Σ √[(Eᵢ₊₁ − Eᵢ)² + (Nᵢ₊₁ − Nᵢ)²]</div>
+<div class="dica"><b>Cuidado</b>Os vértices precisam seguir a ordem do contorno, sem pular nem cruzar linhas. O sentido (horário ou anti-horário) só muda o sinal.</div>
+<h3>Curvas de nível por triangulação</h3><p>Os programas de topografia ligam os pontos levantados em triângulos (malha TIN, pelo critério de Delaunay). Dentro de cada triângulo, a cota varia em linha reta. As curvas de nível nascem onde cada cota redonda corta os lados dos triângulos.</p>
+<div class="dica"><b>Bancada SIG</b>Na aba Bancada SIG você trabalha como num programa de geoprocessamento: importa o levantamento, gera as curvas de nível, traça perfis, calcula corte e aterro do platô e sai com o memorial descritivo pronto.</div>`,
+exemplo:`<h3>Terreno em forma de trapézio</h3><p>Vértices: A (0; 0), B (24; 0), C (20; 30), D (0; 30).</p>
+<ol class="passos"><li><b>A → B.</b> 0 × 0 − 24 × 0 = 0</li><li><b>B → C.</b> 24 × 30 − 20 × 0 = 720</li>
+<li><b>C → D.</b> 20 × 30 − 0 × 30 = 600</li><li><b>D → A.</b> 0 × 0 − 0 × 30 = 0</li>
+<li><b>Área.</b> (0 + 720 + 600 + 0) / 2 = <b>660 m²</b>. Confere com a fórmula do trapézio: (24 + 20)/2 × 30 = 660 ✓</li></ol>
+<div class="dica"><b>Confira no simulador</b>Use o botão "Exemplo do trapézio".</div>`,
+sim:{pts:[[0,0],[28,0],[32,18],[15,30],[0,24]],
+html(){return simWrap('<div class="presets"><button class="chip" id="tpEx">Exemplo do trapézio</button><button class="chip" id="tpLote">Lote irregular</button></div><div class="tbl-wrap"><table class="ed"><thead><tr><th>Vértice</th><th>E (m)</th><th>N (m)</th><th></th></tr></thead><tbody id="tpBody"></tbody></table></div><button class="chip" id="tpAdd">+ Adicionar vértice</button>')},
+init(){const self=this;$('tpAdd').onclick=()=>{const l=self.pts[self.pts.length-1]||[0,0];self.pts.push([l[0]+5,l[1]+5]);self.tabela();self.update()};
+$('tpEx').onclick=()=>{self.pts=[[0,0],[24,0],[20,30],[0,30]];self.tabela();self.update()};$('tpLote').onclick=()=>{self.pts=[[0,0],[28,0],[32,18],[15,30],[0,24]];self.tabela();self.update()};this.tabela()},
+tabela(){const self=this;$('tpBody').innerHTML=this.pts.map((p,i)=>`<tr><td class="num">${String.fromCharCode(65+i)}</td><td><input type="number" step="0.01" id="tpE${i}" value="${p[0]}" aria-label="E do vértice ${String.fromCharCode(65+i)}"></td><td><input type="number" step="0.01" id="tpN${i}" value="${p[1]}" aria-label="N do vértice ${String.fromCharCode(65+i)}"></td><td>${this.pts.length>3?`<button class="rm" data-i="${i}" aria-label="Remover vértice">✕</button>`:''}</td></tr>`).join('');
+$('tpBody').querySelectorAll('input').forEach(inp=>inp.oninput=()=>{const i=+inp.id.slice(3);self.pts[i][inp.id[2]==='E'?0:1]=parseFloat(inp.value.replace(',','.'))||0;self.update()});
+$('tpBody').querySelectorAll('.rm').forEach(b=>b.onclick=()=>{self.pts.splice(+b.dataset.i,1);self.tabela();self.update()})},
+update(){const pts=this.pts,r=calc.area(pts);
+$('tiles').innerHTML=tiles([['Área',br(r.area)+' m²',1],['Hectares',br(r.area/10000,4)+' ha'],['Perímetro',br(r.perim)+' m'],['Vértices',pts.length]]);
+const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]),mnx=Math.min(...xs),mxx=Math.max(...xs),mny=Math.min(...ys),mxy=Math.max(...ys),sc=Math.min(500/((mxx-mnx)||1),260/((mxy-mny)||1)),X=x=>70+(x-mnx)*sc,Y=y=>300-(y-mny)*sc;
+let s='';for(let g=0;g<=4;g++){const gx=70+g*125,gy=40+g*65;s+=Ln(gx,40,gx,300,'grid')+Ln(70,gy,570,gy,'grid')}
+s+=`<polygon points="${pts.map(p=>X(p[0])+','+Y(p[1])).join(' ')}" style="fill:var(--steel-soft);stroke:var(--steel);stroke-width:2"/>`;
+pts.forEach((p,i)=>{const q=pts[(i+1)%pts.length],d=Math.hypot(q[0]-p[0],q[1]-p[1]);s+=T((X(p[0])+X(q[0]))/2,(Y(p[1])+Y(q[1]))/2-6,br(d)+' m','muted','text-anchor="middle" font-size="10"');
+s+=`<circle cx="${X(p[0])}" cy="${Y(p[1])}" r="5" style="fill:var(--amber);stroke:var(--ink)"/>`+T(X(p[0])+8,Y(p[1])+16,String.fromCharCode(65+i),'ink','font-weight="600"')});
+const cx=xs.reduce((a,b)=>a+b,0)/pts.length,cy=ys.reduce((a,b)=>a+b,0)/pts.length;s+=T(X(cx),Y(cy)+4,br(r.area)+' m²','steel','text-anchor="middle" font-weight="600" font-size="14"');
+s+=`<path d="M610 50 l-7 18 l7 -5 l7 5z" style="fill:var(--ink)"/>`+T(610,44,'N','ink','text-anchor="middle" font-weight="600"');
+$('draw').innerHTML=SVG(640,330,'Planta do terreno com área calculada',s);
+let m='Fórmula de Gauss: 2A = Σ (Ei·Ni+1 − Ei+1·Ni)\n';pts.forEach((p,i)=>{const q=pts[(i+1)%pts.length],n1=String.fromCharCode(65+i),n2=String.fromCharCode(65+(i+1)%pts.length);m+=`${n1} → ${n2}: ${br(p[0])} × ${br(q[1])} − ${br(q[0])} × ${br(p[1])} = ${br(p[0]*q[1]-q[0]*p[1])}\n`});
+m+=`Soma = ${br(r.soma)} → A = |${br(r.soma)}| / 2 = ${br(r.area)} m²\nPerímetro = ${br(r.perim)} m`;$('memorial').textContent=m;}}
+});

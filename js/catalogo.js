@@ -1,0 +1,118 @@
+// Catálogo das disciplinas: carregado no início e pelo service worker.
+// Para adicionar uma disciplina: crie js/modulos/<id>.js, inclua a entrada aqui e em AREAS.
+const AREAS=[['Estruturas',['rm','is','ca','lj','pi']],['Geotecnia',['gt','et','ma']],['Hidráulica e Instalações',['hd','ap','eg','el']],['Construção e Gestão',['mc','or','pl']],['Topografia',['tp']]];
+const PROX=['Estruturas de Aço','Estruturas de Madeira','Cargas (NBR 6120)','Compactação de Solos','Hidrologia e Drenagem','Reservatórios','Estradas','Pavimentação','Desempenho (NBR 15575)','Segurança do Trabalho','Patologia das Construções','Cálculo e Física Aplicados'];
+const CATALOGO=[
+{id:'rm',cod:'RM-01',nome:'Resistência dos Materiais',eyebrow:'RM-01 · Vigas biapoiadas',titulo:'Esforço cortante e momento fletor sem mistério',
+quiz:[
+{p:'Uma viga de 4 m recebe 10 kN/m distribuídos. Qual é a reação em cada apoio?',o:['10 kN','20 kN','40 kN','5 kN'],c:1,e:'Carga total = 10 × 4 = 40 kN, dividida igualmente entre os dois apoios: 20 kN cada.'},
+{p:'Onde o momento fletor é máximo?',o:['Sempre nos apoios','Onde o cortante passa por zero','Onde a carga é menor','No primeiro terço do vão'],c:1,e:'O momento máximo acontece onde o esforço cortante troca de sinal (V = 0).'},
+{p:'Qual é o momento máximo de uma viga de 6 m com carga distribuída de 8 kN/m?',o:['24 kN·m','48 kN·m','36 kN·m','144 kN·m'],c:2,e:'M = q·L²/8 = 8 × 36 / 8 = 36 kN·m.'},
+{p:'Uma carga P = 30 kN no meio de uma viga de 4 m gera qual momento máximo?',o:['30 kN·m','60 kN·m','7,5 kN·m','120 kN·m'],c:0,e:'M = P·L/4 = 30 × 4 / 4 = 30 kN·m.'},
+{p:'Por que a armadura principal de uma viga biapoiada fica embaixo?',o:['Para proteger do fogo','Porque a parte de baixo é tracionada e o concreto resiste mal à tração','Por facilidade de execução','Para economizar formas'],c:1,e:'Com momento positivo, a viga é comprimida em cima e tracionada embaixo. O aço absorve a tração.'}]},
+{id:'is',cod:'IS-02',nome:'Isostática',eyebrow:'IS-02 · Apoios e vigas em balanço',titulo:'Apoios, equilíbrio e o perigo das marquises',
+quiz:[
+{p:'Quantas equações de equilíbrio existem para uma estrutura no plano?',o:['1','2','3','6'],c:2,e:'ΣFx = 0, ΣFy = 0 e ΣM = 0. No espaço seriam 6.'},
+{p:'Quais movimentos um engaste impede?',o:['Só o vertical','Vertical e horizontal','Vertical, horizontal e rotação','Nenhum'],c:2,e:'O engaste prende totalmente a peça: duas translações e a rotação.'},
+{p:'Balanço de 2 m com P = 10 kN na ponta. Qual o momento no engaste?',o:['5 kN·m','10 kN·m','20 kN·m','40 kN·m'],c:2,e:'M = P·L = 10 × 2 = 20 kN·m.'},
+{p:'Balanço de 3 m com q = 5 kN/m. Qual o momento no engaste?',o:['15 kN·m','22,5 kN·m','45 kN·m','7,5 kN·m'],c:1,e:'M = q·L²/2 = 5 × 9 / 2 = 22,5 kN·m.'},
+{p:'Em uma marquise (balanço), onde fica a armadura principal?',o:['Embaixo','Em cima','No meio da altura','Tanto faz'],c:1,e:'O momento é negativo e traciona a face superior. O aço principal vai em cima.'}]},
+{id:'ca',cod:'CA-03',nome:'Concreto Armado',eyebrow:'CA-03 · Flexão simples · NBR 6118',titulo:'Quanto aço vai nessa viga?',
+quiz:[
+{p:'Qual é o coeficiente de minoração da resistência do concreto (γc)?',o:['1,0','1,15','1,4','2,0'],c:2,e:'Pela NBR 6118, γc = 1,4. Para o aço, γs = 1,15.'},
+{p:'Qual a resistência de cálculo do aço CA-50 (fyd)?',o:['500 MPa','435 MPa','357 MPa','250 MPa'],c:1,e:'fyd = 500 / 1,15 ≈ 435 MPa.'},
+{p:'Qual o limite de x/d para garantir ductilidade em concretos até C50?',o:['0,25','0,45','0,63','0,80'],c:1,e:'A NBR 6118 limita x/d ≤ 0,45 para concretos até C50.'},
+{p:'Qual a principal função do estribo em uma viga?',o:['Resistir ao momento fletor','Resistir ao esforço cortante','Diminuir o peso','Aumentar o cobrimento'],c:1,e:'Os estribos absorvem o esforço cortante e seguram as barras longitudinais no lugar.'},
+{p:'Para que serve o cobrimento da armadura?',o:['Deixar a viga mais bonita','Proteger o aço contra corrosão e fogo','Economizar concreto','Aumentar o momento'],c:1,e:'O cobrimento protege o aço do ambiente. Ele depende da classe de agressividade.'}]},
+{id:'gt',cod:'GT-04',nome:'Fundações e Solos',eyebrow:'GT-04 · Sondagem SPT e sapata isolada',titulo:'Do furo de sondagem ao tamanho da sapata',
+quiz:[
+{p:'O que o ensaio SPT mede?',o:['A umidade do solo','O número de golpes para cravar os 30 cm finais do amostrador','A cor das camadas','O nível do lençol freático apenas'],c:1,e:'O NSPT é o número de golpes necessários para cravar os últimos 30 cm do amostrador padrão.'},
+{p:'Com NSPT = 15, qual a tensão admissível estimada?',o:['150 kPa','300 kPa','750 kPa','15 kPa'],c:1,e:'σadm ≈ 15/50 = 0,30 MPa = 300 kPa.'},
+{p:'Por que se usa 1,05·N no cálculo da área da sapata?',o:['Para considerar o peso próprio da sapata e do solo','Por causa do vento','Para arredondar','Por exigência da prefeitura'],c:0,e:'Os 5% a mais cobrem, de forma simplificada, o peso da própria sapata e do solo sobre ela.'},
+{p:'Qual destas é uma fundação profunda?',o:['Sapata isolada','Radier','Estaca hélice contínua','Baldrame'],c:2,e:'Estacas e tubulões levam a carga a camadas profundas. Sapata e radier são rasas.'},
+{p:'Qual a condição para a sapata ser considerada rígida?',o:['h ≥ (L − a0)/3','h ≥ L','h ≤ 10 cm','B = L'],c:0,e:'Pela NBR 6118, a sapata é rígida quando h ≥ (A − a0)/3, com A sendo a dimensão da sapata na direção analisada.'}]},
+{id:'hd',cod:'HD-05',nome:'Hidráulica',eyebrow:'HD-05 · Perda de carga · Hazen-Williams',titulo:'Por que a água chega fraca no último andar',
+quiz:[
+{p:'O que aumenta a perda de carga em um cano?',o:['Diâmetro maior','Vazão maior','Cano mais curto','Material mais liso'],c:1,e:'A perda cresce com a vazão (expoente 1,85) e cai muito com o aumento do diâmetro.'},
+{p:'Qual o coeficiente C de Hazen-Williams típico do PVC?',o:['50','80','150','300'],c:2,e:'O PVC é liso, com C entre 140 e 150.'},
+{p:'Qual a velocidade máxima recomendada pela NBR 5626 em água fria?',o:['0,5 m/s','1 m/s','3 m/s','10 m/s'],c:2,e:'A NBR 5626 limita em 3 m/s para evitar ruído, desgaste e golpe de aríete.'},
+{p:'Vazão de 2 L/s em um tubo de área 0,001 m². Qual a velocidade?',o:['0,5 m/s','1 m/s','2 m/s','20 m/s'],c:2,e:'v = Q/A = 0,002 / 0,001 = 2 m/s.'},
+{p:'Se o comprimento do trecho dobrar, o que acontece com a perda de carga distribuída?',o:['Fica igual','Dobra','Cai pela metade','Quadruplica'],c:1,e:'hf = J × L. Com a mesma vazão e diâmetro, J não muda e hf dobra.'}]},
+{id:'mc',cod:'MC-06',nome:'Materiais e Traço',eyebrow:'MC-06 · Dosagem de concreto',titulo:'Quantos sacos, latas e litros de água',
+quiz:[
+{p:'No traço 1 : 2 : 3, o que significam os números?',o:['Brita : areia : cimento','Cimento : areia : brita','Água : cimento : areia','Cimento : brita : areia'],c:1,e:'A ordem padrão é cimento : areia : brita, com a relação água/cimento indicada à parte.'},
+{p:'O que acontece se aumentarmos a relação água/cimento?',o:['O concreto fica mais resistente','A resistência diminui','Nada muda','O concreto seca mais rápido e fica mais forte'],c:1,e:'Pela Lei de Abrams, mais água por cimento deixa o concreto mais poroso e menos resistente.'},
+{p:'Quantos quilos tem um saco de cimento padrão no Brasil?',o:['25 kg','40 kg','50 kg','60 kg'],c:2,e:'O saco padrão tem 50 kg.'},
+{p:'Para que serve a cura úmida do concreto?',o:['Deixar a superfície lisa','Garantir a hidratação do cimento e evitar fissuras','Acelerar a desforma','Mudar a cor'],c:1,e:'Manter o concreto úmido nos primeiros dias garante que o cimento hidrate e reduz fissuras de retração.'},
+{p:'O que o ensaio de abatimento (slump) mede?',o:['A resistência','A consistência e trabalhabilidade','O peso','A temperatura'],c:1,e:'O slump test mede o quanto o concreto fresco abate, indicando sua consistência.'}]},
+{id:'tp',cod:'TP-07',nome:'Topografia',eyebrow:'TP-07 · Coordenadas, curvas de nível e Bancada SIG',titulo:'Do levantamento ao memorial descritivo',deps:["js/sig.js"],
+quiz:[
+{p:'O que a fórmula de Gauss calcula?',o:['O volume de corte','A área a partir das coordenadas dos vértices','A declividade','O azimute'],c:1,e:'Ela calcula a área de um polígono a partir das coordenadas dos seus vértices.'},
+{p:'Qual a área de um terreno retangular de 20 m por 30 m?',o:['50 m²','100 m²','600 m²','6.000 m²'],c:2,e:'20 × 30 = 600 m².'},
+{p:'O que o nivelamento geométrico mede?',o:['Distâncias horizontais','Diferenças de altura (cotas)','Ângulos horizontais','Áreas'],c:1,e:'O nivelamento determina a diferença de nível entre pontos.'},
+{p:'Como se mede o azimute?',o:['A partir do Sul, sentido anti-horário','A partir do Norte, sentido horário','A partir do Leste','Sempre de 0° a 90°'],c:1,e:'O azimute é medido a partir do Norte, no sentido horário, de 0° a 360°.'},
+{p:'O que é uma curva de nível?',o:['Uma estrada em curva','Linha que liga pontos de mesma cota','O limite do terreno','Uma rua com declive'],c:1,e:'Curvas de nível ligam pontos de mesma altitude. Quanto mais próximas, mais íngreme o terreno.'}]},
+{id:'or',cod:'OR-08',nome:'Orçamento de Obras',eyebrow:'OR-08 · Composição de custo e BDI',titulo:'Do custo unitário ao preço de venda',
+quiz:[
+{p:'O que significa a sigla BDI?',o:['Base de Dados Integrada','Benefícios e Despesas Indiretas','Balanço de Despesas Internas','Boletim Diário de Insumos'],c:1,e:'BDI = Benefícios e Despesas Indiretas, aplicado sobre o custo direto.'},
+{p:'Um serviço custa R$ 100,00 e o BDI é de 25%. Qual o preço de venda?',o:['R$ 75,00','R$ 100,25','R$ 125,00','R$ 133,33'],c:2,e:'Preço = 100 × (1 + 0,25) = R$ 125,00.'},
+{p:'O que é o SINAPI?',o:['Um software de desenho','Sistema de referência de custos da construção mantido pela Caixa e IBGE','Um sindicato','Uma norma de concreto'],c:1,e:'O SINAPI fornece custos e composições de referência para obras, especialmente com recurso federal.'},
+{p:'O que entra em uma composição de custo unitário?',o:['Só o material','Materiais, mão de obra e equipamentos por unidade de serviço','Só o lucro','Apenas os impostos'],c:1,e:'A composição reúne todos os insumos (material, mão de obra, equipamento) com seus coeficientes por unidade.'},
+{p:'Sobre o que incidem os encargos sociais no orçamento?',o:['Sobre os materiais','Sobre a mão de obra','Sobre o terreno','Sobre os equipamentos'],c:1,e:'Encargos sociais (INSS, FGTS, férias, 13º etc.) incidem sobre o custo da mão de obra.'}]},
+{id:'lj',cod:'LJ-09',nome:'Lajes',eyebrow:'LJ-09 · Cargas e reações · NBR 6120',titulo:'Para onde vai o peso da laje',
+quiz:[
+{p:'Qual o peso específico do concreto armado usado no cálculo de cargas?',o:['18 kN/m³','22 kN/m³','25 kN/m³','30 kN/m³'],c:2,e:'A NBR 6120 adota 25 kN/m³ para o concreto armado.'},
+{p:'Qual o peso próprio de uma laje maciça de 12 cm?',o:['1,2 kN/m²','2,5 kN/m²','3,0 kN/m²','12 kN/m²'],c:2,e:'25 × 0,12 = 3,0 kN/m².'},
+{p:'Uma laje de 3 × 7 m (λ = 2,33) é armada como?',o:['Em cruz','Em uma direção','Não precisa de armadura','Só com tela'],c:1,e:'Quando λ = ly/lx passa de 2, a laje trabalha praticamente numa direção só.'},
+{p:'Qual a sobrecarga usual para salas e quartos de residência?',o:['0,5 kN/m²','1,5 kN/m²','5,0 kN/m²','10 kN/m²'],c:1,e:'A NBR 6120 indica 1,5 kN/m² para dormitórios e salas residenciais.'},
+{p:'No método das charneiras com bordas iguais, as linhas saem dos cantos com qual ângulo?',o:['30°','45°','60°','90°'],c:1,e:'Com as quatro bordas no mesmo tipo de apoio, as charneiras partem dos cantos a 45°.'}]},
+{id:'ma',cod:'MA-10',nome:'Muros de Arrimo',eyebrow:'MA-10 · Muro de gravidade · Empuxo de Rankine',titulo:'O muro aguenta a terra?',
+quiz:[
+{p:'Qual o coeficiente de empuxo ativo Ka para um solo com φ = 30°?',o:['0,25','0,33','0,50','1,00'],c:1,e:'Ka = tg²(45° − 15°) = tg²30° ≈ 0,333.'},
+{p:'Em que altura atua o empuxo ativo de um solo sem sobrecarga?',o:['No topo','A H/2 da base','A H/3 da base','Na base'],c:2,e:'A pressão é triangular, então a resultante fica a um terço da altura, medida a partir da base.'},
+{p:'Por que a drenagem atrás do muro é essencial?',o:['Para o muro secar mais rápido','Para evitar que a água some pressão ao empuxo','Por estética','Para economizar concreto'],c:1,e:'Sem drenagem, a água acumulada aplica pressão hidrostática, que pode dobrar a força sobre o muro.'},
+{p:'O que garante a condição e ≤ B/6?',o:['Que o muro não desliza','Que toda a base fica comprimida','Que o muro é barato','Que não há empuxo'],c:1,e:'Com a resultante dentro do terço central, não há tração entre a base e o solo.'},
+{p:'Se a altura do muro dobra, o que acontece com o empuxo?',o:['Dobra','Fica igual','Quadruplica','Cai pela metade'],c:2,e:'Ea depende de H². Dobrar a altura multiplica o empuxo por 4.'}]},
+{id:'ap',cod:'AP-11',nome:'Águas Pluviais',eyebrow:'AP-11 · Calhas e condutores · NBR 10844',titulo:'Calha que não transborda',
+quiz:[
+{p:'Qual norma trata das instalações prediais de águas pluviais?',o:['NBR 5626','NBR 8160','NBR 10844','NBR 6118'],c:2,e:'A NBR 10844 trata de águas pluviais. A 5626 é água fria e a 8160 é esgoto.'},
+{p:'Qual a declividade mínima de uma calha de beiral?',o:['0,1%','0,5%','2%','5%'],c:1,e:'A NBR 10844 pede declividade mínima de 0,5% para calhas.'},
+{p:'Qual o diâmetro interno mínimo de um condutor vertical?',o:['40 mm','50 mm','70 mm','150 mm'],c:2,e:'A norma fixa 70 mm como diâmetro interno mínimo. Na prática, usa-se tubo de 75 mm.'},
+{p:'Chuva de 120 mm/h sobre 50 m² de telhado. Qual a vazão?',o:['60 L/min','100 L/min','120 L/min','6.000 L/min'],c:1,e:'Q = I × A / 60 = 120 × 50 / 60 = 100 L/min.'},
+{p:'Qual o coeficiente de Manning (n) de uma calha de PVC?',o:['0,011','0,015','0,030','0,110'],c:0,e:'Plástico e metais lisos têm n = 0,011.'}]},
+{id:'pl',cod:'PL-12',nome:'Planejamento de Obras',eyebrow:'PL-12 · Cronograma e caminho crítico · CPM',titulo:'Qual atividade não pode atrasar',
+quiz:[
+{p:'O que é o caminho crítico de uma obra?',o:['As atividades mais caras','A sequência de atividades com folga zero, que define o prazo','As atividades com mais operários','As atividades de maior risco de acidente'],c:1,e:'O caminho crítico é a cadeia de atividades sem folga. A soma das durações dele é o prazo da obra.'},
+{p:'Uma atividade crítica atrasa 3 dias. O que acontece com o prazo da obra?',o:['Nada','Atrasa 3 dias','Atrasa 1 dia','Adianta 3 dias'],c:1,e:'Como a folga é zero, todo atraso numa atividade crítica passa direto para o prazo final.'},
+{p:'Pelo PERT, qual a duração esperada com otimista 4, mais provável 6 e pessimista 14 dias?',o:['6 dias','7 dias','8 dias','14 dias'],c:1,e:'te = (4 + 4 × 6 + 14) / 6 = 42 / 6 = 7 dias.'},
+{p:'Como se calcula a folga total de uma atividade?',o:['Duração × 2','Início mais tarde − início mais cedo','Término cedo + duração','Prazo total ÷ número de atividades'],c:1,e:'Folga total = LS − ES (ou LF − EF): quanto a atividade pode deslizar sem atrasar a obra.'},
+{p:'O que a curva S representa?',o:['A forma do terreno','O avanço acumulado da obra ao longo do tempo','A curva de uma estrada','O consumo de água'],c:1,e:'A curva S mostra o avanço físico ou financeiro acumulado. Começa devagar, acelera no meio e desacelera no fim.'}]},
+{id:'et',cod:'ET-13',nome:'Estacas',eyebrow:'ET-13 · Capacidade de carga pelo SPT · NBR 6122',titulo:'Quanto aguenta cada estaca',
+quiz:[
+{p:'Por quais mecanismos uma estaca resiste à carga?',o:['Só pela ponta','Só pelo atrito','Pela ponta e pelo atrito lateral','Pelo peso próprio'],c:2,e:'A capacidade total é a soma da resistência de ponta com o atrito lateral ao longo do fuste.'},
+{p:'Qual o fator de segurança global usual nos métodos semiempíricos (NBR 6122)?',o:['1,0','1,4','2,0','4,0'],c:2,e:'A NBR 6122 usa fator de segurança global 2 para a carga admissível calculada por métodos semiempíricos.'},
+{p:'Qual o perímetro de uma estaca circular de Ø 40 cm?',o:['0,40 m','1,26 m','0,126 m','0,50 m'],c:1,e:'U = π × D = 3,1416 × 0,40 ≈ 1,26 m.'},
+{p:'No método de Décourt-Quaresma, como se calcula o Np?',o:['Só o N da ponta','Média do N na ponta, logo acima e logo abaixo','O maior N da sondagem','A média de toda a sondagem'],c:1,e:'Np é a média de três valores: o da cota da ponta, o imediatamente acima e o imediatamente abaixo.'},
+{p:'Por que se calcula por dois métodos e se adota o menor valor?',o:['Para aumentar a carga','Porque os métodos são empíricos e a média de erros é grande; o menor é mais seguro','Por exigência do fabricante','Para usar menos estacas'],c:1,e:'Os métodos semiempíricos têm dispersão. Comparar dois e adotar o menor dá mais segurança.'}]},
+{id:'pi',cod:'PI-14',nome:'Pilares',eyebrow:'PI-14 · Pilar intermediário · NBR 6118',titulo:'Esbeltez, segunda ordem e armadura',
+quiz:[
+{p:'Como se calcula a esbeltez de um pilar retangular?',o:['λ = le / b','λ = 3,46 · le / h','λ = h / le','λ = 12 · le'],c:1,e:'Para seção retangular, o raio de giração é h/√12, e daí vem λ = 3,46 · le / h.'},
+{p:'Qual a menor dimensão admitida para um pilar pela NBR 6118 (caso geral)?',o:['10 cm','12 cm','14 cm','19 cm'],c:2,e:'O mínimo geral é 14 cm. Até 12 cm só com γn majorado em casos especiais. Abaixo de 19 cm, aplica-se γn.'},
+{p:'Até qual esbeltez o pilar intermediário dispensa o efeito de 2ª ordem?',o:['λ ≤ 20','λ ≤ 35','λ ≤ 90','λ ≤ 140'],c:1,e:'Com momento mínimo e αb = 1, λ1 = 35. Acima disso, soma-se o momento de 2ª ordem.'},
+{p:'Qual a armadura mínima longitudinal em pilares?',o:['0,15% Ac','0,4% Ac ou 0,15·Nd/fyd, o maior','4% Ac','8% Ac'],c:1,e:'As,mín = 0,15·Nd/fyd, mas não menos que 0,4% da área de concreto.'},
+{p:'Qual o espaçamento máximo dos estribos para barras de 12,5 mm em CA-50?',o:['10 cm','15 cm','20 cm ou menos, limitado a 12φ = 15 cm e à menor dimensão','30 cm'],c:2,e:'O espaçamento é o menor entre 20 cm, a menor dimensão do pilar e 12φ (12 × 1,25 = 15 cm).'}]},
+{id:'eg',cod:'EG-15',nome:'Esgoto Sanitário',eyebrow:'EG-15 · Unidades Hunter de Contribuição · NBR 8160',titulo:'Do ralo até a rede pública',
+quiz:[
+{p:'O que significa UHC?',o:['Unidade Hidráulica de Consumo','Unidade Hunter de Contribuição','Unidade Horária de Coleta','Uso Hidrossanitário Comum'],c:1,e:'Unidade Hunter de Contribuição: o peso de cada aparelho no dimensionamento do esgoto.'},
+{p:'Qual o diâmetro mínimo do ramal de descarga da bacia sanitária?',o:['DN 40','DN 50','DN 75','DN 100'],c:3,e:'A bacia sanitária pede ramal de descarga DN 100.'},
+{p:'Qual a declividade mínima de um coletor DN 100?',o:['0,5%','1%','3%','5%'],c:1,e:'Para DN 100 ou maior, a declividade mínima é 1%. Para DN 75 ou menor, 2%.'},
+{p:'Para que serve a ventilação do esgoto?',o:['Secar o esgoto','Equilibrar a pressão e proteger o fecho hídrico dos sifões','Aumentar a vazão','Reduzir o diâmetro dos tubos'],c:1,e:'Sem ventilação, a descarga cria pressão e sucção que esvaziam os sifões, deixando o gás entrar nos ambientes.'},
+{p:'Qual a distância máxima entre caixas de inspeção?',o:['5 m','10 m','25 m','100 m'],c:2,e:'A NBR 8160 limita a 25 m a distância entre dispositivos de inspeção.'}]},
+{id:'el',cod:'EL-16',nome:'Instalações Elétricas',eyebrow:'EL-16 · Previsão de cargas e circuitos · NBR 5410',titulo:'Fio, disjuntor e queda de tensão',
+quiz:[
+{p:'Qual a seção mínima do fio para circuitos de tomadas?',o:['1,0 mm²','1,5 mm²','2,5 mm²','4,0 mm²'],c:2,e:'A NBR 5410 pede 2,5 mm² para circuitos de força (tomadas) e 1,5 mm² para iluminação.'},
+{p:'Qual a regra de coordenação entre corrente, disjuntor e fio?',o:['In ≤ Ib ≤ Iz','Ib ≤ In ≤ Iz','Iz ≤ In ≤ Ib','In = Iz'],c:1,e:'A corrente do circuito não pode passar do disjuntor, e o disjuntor não pode passar da capacidade do fio.'},
+{p:'Quantas TUG, no mínimo, numa cozinha com 10 m de perímetro?',o:['1','2','3','4'],c:2,e:'Cozinha: 1 tomada a cada 3,5 m de perímetro ou fração. 10 / 3,5 = 2,86 → 3 tomadas.'},
+{p:'Qual a corrente de um chuveiro de 7.500 W em 220 V?',o:['17 A','27 A','34 A','59 A'],c:2,e:'Ib = 7500 / 220 ≈ 34,1 A.'},
+{p:'Para que serve o DR?',o:['Proteger o fio contra sobrecarga','Proteger as pessoas contra choque elétrico','Reduzir a conta de luz','Substituir o aterramento'],c:1,e:'O DR detecta fuga de corrente para a terra e desliga o circuito, protegendo as pessoas.'}]}
+];
