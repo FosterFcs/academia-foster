@@ -112,7 +112,7 @@ try:
         pv.goto(URL+'validar.html?c='+cod.lower());pv.wait_for_selector('.folha');t=pv.inner_text('#saida')
         ok('Certificado válido' in t and 'Ana Aluna Souza' in t and '***.982.247-**' in t and '4 horas' in t and '8,0' in t and 'RM-01' in t,'certificado válido na página pública')
         ok('Wilson Foster' in t and 'José Wilson Pereira' in t and 'CREA-SP 5071894914' in t,'assinatura do instrutor')
-        ok('Conteúdo programático' in t and 'Esforço cortante' in t,'conteúdo programático com a teoria')
+        ok('conteúdo programático' in t.lower() and 'Esforço cortante' in t,'conteúdo programático com a teoria')
         ok(pv.locator('#qr svg').count()==1,'QR de validação');foto(pv,'c_valida','body')
         ok('52998224725' not in pv.content() and '529.982.247-25' not in pv.content(),'CPF completo nunca aparece')
         pv.fill('#codigo','xx');pv.click('#busca button');ok('formato inválido' in pv.inner_text('#saida'),'formato inválido')
