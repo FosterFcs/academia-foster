@@ -71,7 +71,7 @@ python3 -m playwright install chromium
 sh testes/rodar-todos.sh
 ```
 
-Os testes cobrem o conteúdo de cada disciplina (3 exemplos, aba "Na obra" com erros comuns e checklist, banco de 15 questões, com os números dos exemplos conferidos contra as calculadoras), os cálculos (comparados com cálculo à mão, com a biblioteca de referência PROJ para a conversão UTM e com um modelo de fibras para os pilares), a interface de todas as disciplinas no computador e no celular, a Bancada SIG com cliques reais no mapa, o funcionamento offline, a atualização de versão, os downloads e a posição do mapa de fundo.
+Os testes cobrem o conteúdo de cada disciplina (3 exemplos, aba "Na obra" com erros comuns e checklist, banco de 15 questões, com os números dos exemplos conferidos contra as calculadoras), os cálculos (comparados com cálculo à mão, com as tabelas de Timoshenko para as lajes, com a biblioteca de referência PROJ para a conversão UTM e com um modelo de fibras para os pilares), a interface de todas as disciplinas no computador e no celular, a Bancada SIG com cliques reais no mapa, o funcionamento offline, a atualização de versão, os downloads e a posição do mapa de fundo.
 
 ## Mapa de fundo
 

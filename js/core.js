@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.3.0';
+const VERSAO_APP='1.4.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -55,7 +55,7 @@ const MODS=CATALOGO;MODS.forEach(m=>{m.carregado=false});
 const modById=id=>MODS.find(m=>m.id===id);
 function placarMod(m){const r=prog[m.id]||{},n=Object.keys(r).length,ok=m.quiz.filter((q,i)=>r[i]===q.c).length;return{n,ok,tot:m.quiz.length}}
 function tagMod(m){const p=placarMod(m);return p.n===p.tot?`<span class="tag feito">✓ ${p.ok}/${p.tot}</span>`:p.n?`<span class="tag">${p.n}/${p.tot}</span>`:''}
-function bindNav(root){root.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.m;st.tab='teoria';st.ex=0;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})})}
+function bindNav(root){root.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.m;st.tab='teoria';st.ex=0;st.calc=0;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})})}
 function trilha(){
   const mob=matchMedia('(max-width:820px)').matches;
   let h=`<button class="disc${st.mod==='inicio'?' ativo':''}" data-m="inicio"><span class="cod">00</span>Início</button>`;
@@ -91,8 +91,11 @@ function render(){
   if(st.tab==='teoria')p.innerHTML=m.teoria;
   else if(st.tab==='exemplo')renderExemplos(m,p);
   else if(st.tab==='obra')renderObra(m,p);
-  else if(st.tab==='sim'){p.innerHTML=m.sim.html();if(m.sim.init)m.sim.init();
-    p.querySelectorAll('.ctrl input[type=range],.ctrl select').forEach(i=>i.addEventListener('input',()=>{outs();m.sim.update()}));outs();m.sim.update();}
+  else if(st.tab==='sim'){const lista=[m.sim,...(m.extras||[])],k=Math.min(st.calc||0,lista.length-1),s=lista[k];
+    p.innerHTML=(lista.length>1?`<div class="calcs" role="tablist" aria-label="Calculadoras desta disciplina">${lista.map((c,i)=>`<button class="calc-op${i===k?' on':''}" data-calc="${i}" role="tab" aria-selected="${i===k}">${c.nome||'Principal'}</button>`).join('')}</div>`:'')+s.html();
+    p.querySelectorAll('[data-calc]').forEach(b=>b.onclick=()=>{st.calc=+b.dataset.calc;render()});
+    if(s.init)s.init();
+    p.querySelectorAll('.ctrl input[type=range],.ctrl select').forEach(i=>i.addEventListener('input',()=>{outs();s.update()}));outs();s.update();}
   else if(st.tab==='sig'&&m.sig){p.innerHTML=m.sig.html();m.sig.init()}
   else renderQuiz(m,p);
   const ir=$('irSim');if(ir)ir.onclick=()=>{st.tab='sim';render()};

@@ -195,6 +195,75 @@ const calc={
   orcamento(itens,bdi,qtd){
     const linhas=itens.map(i=>({...i,sub:i.coef*i.preco})),cu=linhas.reduce((s,l)=>s+l.sub,0),pu=cu*(1+bdi/100);
     return{linhas,cu,pu,total:pu*qtd};
+  },
+  // ===== Fase 2 =====
+  // Estribos: NBR 6118, modelo de cálculo I (θ = 45°, estribos a 90°). Unidades: kN e cm.
+  estribos(bw,h,fck,Vk,phi=5,aco=50,ramos=2,c=4){
+    const d=h-c,fcd=fck/14,Vd=1.4*Vk,av2=1-fck/250,VRd2=0.27*av2*fcd*bw*d;
+    const fctm=0.3*fck**(2/3),fctd=0.7*fctm/1.4/10,Vc=0.6*fctd*bw*d,fywd=Math.min(aco/1.15,43.5);
+    const Vsw=Math.max(0,Vd-Vc),aswS=Vsw/(0.9*d*fywd),rmin=0.2*fctm/(aco*10),aswMin=rmin*bw,asw=Math.max(aswS,aswMin);
+    const lim=Vd<=0.67*VRd2,smax=lim?Math.min(0.6*d,30):Math.min(0.3*d,20),Aphi=ramos*Math.PI*(phi/10)**2/4;
+    const s=Math.max(5,Math.min(Math.floor(Aphi/asw+1e-9),Math.floor(smax)));
+    return{d,Vd,av2,VRd2,fctm,fctd,Vc,fywd,Vsw,aswS,rmin,aswMin,asw,smax,lim,Aphi,s,ok:Vd<=VRd2,minGoverna:aswMin>=aswS};
+  },
+  // Laje apoiada nos 4 lados: solução exata de Navier (série dupla), ν = 0,2. lx = menor vão (m), p em kN/m².
+  navier(lx,ly,nu=0.2,termos=99){
+    let mx=0,my=0,w=0;const a=lx,b=ly;
+    for(let m=1;m<=termos;m+=2)for(let n=1;n<=termos;n+=2){const am=m/a,bn=n/b,s=((m-1)/2+(n-1)/2)%2?-1:1,den=m*n*(am*am+bn*bn)**2;
+      w+=s/den;mx+=s*(am*am+nu*bn*bn)/den;my+=s*(bn*bn+nu*am*am)/den}
+    // coeficientes adimensionais: M = c · p · lx² ; w = cw · p · lx⁴ / D
+    const P4=Math.PI**4,P6=Math.PI**6;return{cx:16/P4*mx/(lx*lx),cy:16/P4*my/(lx*lx),cw:16/P6*w/(lx**4)}
+  },
+  armLaje(Mk,h,fck,c=2.5){// por metro de largura: Mk em kN·m/m
+    const bw=100,d=h-c-0.5,fcd=fck/14,fyd=50/1.15,Md=1.4*Mk*100,k=Md/(0.425*bw*d*d*fcd);
+    if(k>=1)return{d,Md,inviavel:true};
+    const x=1.25*d*(1-Math.sqrt(1-k)),As=Md/(fyd*(d-0.4*x)),Asmin=0.67*0.15/100*bw*h,Asf=Math.max(As,Asmin),smax=Math.min(20,2*h);
+    let esc=null;for(const f of [5,6.3,8,10,12.5]){const a=Math.PI*(f/10)**2/4,s=Math.floor(Math.min(100*a/Asf,smax)+1e-9);if(s>=10){esc={f,s,area:100*a/s};break}}
+    if(!esc){const a=Math.PI*1.25**2/4,s=Math.max(7,Math.floor(100*a/Asf));esc={f:12.5,s,area:100*a/s}}
+    return{d,Md,x,xd:x/d,As,Asmin,Asf,smax,esc,inviavel:false};
+  },
+  lajeMomentos(l1,l2,h,g,q,fck){
+    const lx=Math.min(l1,l2),ly=Math.max(l1,l2),lam=ly/lx,p=25*h/100+g+q,uma=lam>2;
+    let Mx,My,cw;
+    if(uma){Mx=p*lx*lx/8;My=0;cw=5/384}else{const nv=calc.navier(lx,ly);Mx=nv.cx*p*lx*lx;My=nv.cy*p*lx*lx;cw=nv.cw}
+    const ax=calc.armLaje(Mx,h,fck);let ay;
+    if(uma){const As=Math.max(0.2*ax.Asf,0.9,0.5*0.15/100*100*h);let esc=null;for(const f of [5,6.3,8]){const a=Math.PI*(f/10)**2/4,s=Math.floor(Math.min(100*a/As,33)+1e-9);if(s>=10){esc={f,s,area:100*a/s};break}}ay={dist:true,Asf:As,esc}}
+    else ay=calc.armLaje(My,h,fck,3.5);
+    const Ecs=0.85*5600*Math.sqrt(fck),D=Ecs*1000*(h/100)**3/12,ps=25*h/100+g+0.3*q;
+    const wi=cw*ps*lx**4/D*1000,wt=wi*2.32,lim=1000*lx/250;
+    return{lx,ly,lam,p,uma,Mx,My,ax,ay,Ecs,ps,wi,wt,lim,okF:wt<=lim};
+  },
+  // Pré-dimensionamento de pilar pela área de influência (estimativa para o lançamento)
+  preDimPilar(area,pav,carga,tipo,fck,b){
+    const alfa={intermediario:1.3,extremidade:1.5,canto:1.8}[tipo],Nk=area*carga*pav,Nd=1.4*alfa*Nk,fcd=fck/14,sig=0.85*fcd+0.01*(42-0.85*fcd);
+    const bb=Math.max(b,14),gn=bb<19?1.95-0.05*bb:1,Ac=gn*Nd/sig,hh=Math.max(bb,Math.ceil(Ac/bb/5-1e-9)*5),hf=Math.max(hh,Math.ceil(360/bb/5-1e-9)*5);
+    return{alfa,Nk,Nd,gn,fcd,sig,Ac,b:bb,h:hf,Acf:bb*hf,parede:hf>5*bb};
+  },
+  // Tanque séptico (NBR 7229) e sumidouro (NBR 13969)
+  fossa(N,C,Lf,anos,temp){
+    const cd=N*C,T=cd<=1500?1:cd<=3000?0.92:cd<=4500?0.83:cd<=6000?0.75:cd<=7500?0.67:cd<=9000?0.58:0.5;
+    const K={frio:[94,134,174,214,254],medio:[65,105,145,185,225],quente:[57,97,137,177,217]}[temp][anos-1];
+    const V=1000+N*(C*T+K*Lf),hu=V<=6000?1.2:V<=10000?1.5:1.8,Ab=V/1000/hu;let L=Math.sqrt(2*Ab),W=L/2;if(W<0.8){W=0.8;L=Math.max(Ab/W,1.6)}
+    return{cd,T,K,V,hu,Ab,L:Math.ceil(L*20)/20,W:Math.ceil(W*20)/20};
+  },
+  sumidouro(cd,Ci,D,n=1){const A=cd/Ci/n,fundo=Math.PI*D*D/4,h=Math.max(0,(A-fundo)/(Math.PI*D));return{A:cd/Ci,An:A,fundo,h,hAdot:Math.ceil(h*10)/10}},
+  caixaGordura(cozinhas,pessoas){if(cozinhas<=1)return{tipo:'simples (CGS)',V:31,D:40};if(cozinhas<=2)return{tipo:'dupla (CGD)',V:120,D:60};const V=2*pessoas+20;return{tipo:'especial (CGE)',V,D:null}},
+  // Dosagem experimental pelo método ABCP (estimativa de partida)
+  ABCP_AGUA:{'40':{9.5:220,19:195,25:190,32:185,38:180},'60':{9.5:225,19:200,25:195,32:190,38:185},'80':{9.5:230,19:205,25:200,32:195,38:190}},
+  abcpBrita(MF,Dmax){const base={9.5:0.645,19:0.705,25:0.770,32:0.795,38:0.820}[Dmax];return base-0.1*(MF-1.8)},
+  dosagem(fck,sd,slump,Dmax,MF,classe,muBrita=1500){
+    const fcj=fck+1.65*sd,acAbrams=Math.log(93.2/fcj)/Math.log(7.3),acMax=[0.65,0.60,0.55,0.45][classe-1],cMin=[260,280,320,360][classe-1],fckMin=[20,25,30,40][classe-1];
+    const ac=Math.floor(Math.min(acAbrams,acMax)*100+1e-9)/100,Ca=calc.ABCP_AGUA[slump][Dmax];let C=Ca/ac;const cMinGov=C<cMin;C=Math.max(C,cMin);
+    const Vb=calc.abcpBrita(MF,Dmax),Cb=Vb*muBrita,Va=1-(C/3100+Cb/2700+Ca/1000),Cm=Va*2650;
+    return{fcj,acAbrams,acMax,ac,Ca,C,cMin,cMinGov,fckMin,okFck:fck>=fckMin,Vb,Cb,Va,Cm,a:Cm/C,p:Cb/C,sacos:C/50};
+  },
+  // Quantitativo de parede: blocos, argamassa de assentamento, chapisco e reboco
+  BLOCOS:{'Cerâmico 9 × 19 × 19':[19,19,9],'Cerâmico 14 × 19 × 29':[29,19,14],'Concreto 14 × 19 × 39':[39,19,14],'Tijolo maciço 5 × 10 × 20 (meia vez)':[20,5,10]},
+  parede(comp,alt,vaos,bloco,junta,reboco,faces,traco){
+    const [c,a,e]=calc.BLOCOS[bloco],j=junta/100,A=Math.max(0,comp*alt-vaos),nb=1/((c/100+j)*(a/100+j)),blocos=Math.ceil(A*nb*1.05);
+    const Vass=A*(1-nb*c*a/1e4)*e/100*1.1,Vreb=A*faces*reboco/100*1.1,Vch=A*faces*0.005*1.1,Vtot=Vass+Vreb;
+    const [ci,ca,ar]=traco,cim=Vtot*ci/ar*1420+Vch*1/3*1420,cal=Vtot*ca/ar*600,areia=Vtot+Vch*1;
+    return{A,nb,blocos,Vass,Vreb,Vch,cim,cal,areia,sacosC:Math.ceil(cim/50),sacosCal:Math.ceil(cal/20)};
   }
 };
 // CALC-END

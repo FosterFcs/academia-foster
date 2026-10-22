@@ -186,3 +186,9 @@ p.pill{margin:0;display:block;max-width:420px;font-family:var(--f-body);font-wei
 .checklist .chk{align-items:flex-start;padding:8px 10px;border:1.5px solid var(--line);background:var(--sheet)}
 .checklist .chk input{margin-top:3px;flex:none}
 .checklist .chk:has(input:checked){border-color:var(--pos);background:var(--pos-fill)}
+
+/* seletor de calculadoras da disciplina */
+.calcs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;padding-bottom:12px;border-bottom:1px dashed var(--line)}
+.calc-op{font-family:var(--f-mono);font-size:.75rem;padding:6px 11px;border:1.5px solid var(--line);background:var(--sheet);color:var(--ink);cursor:pointer}
+.calc-op:hover{border-color:var(--steel)}
+.calc-op.on{border-color:var(--ink);background:var(--ink);color:var(--sheet);font-weight:600}

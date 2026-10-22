@@ -48,6 +48,10 @@ with sync_playwright() as p:
                     pg.click('#painel .checklist input >> nth=0')
                     ok(pg.is_checked('#painel .checklist input >> nth=0') and f'1 de {nck}' in pg.inner_text('#painel'),f'{w} {m}: marcar checklist')
                 if tab=='sim':
+                  ncalc=max(1,len(pg.query_selector_all('#painel .calc-op')))
+                  if m in('ca','lj','pi','eg','mc','or'): ok(ncalc==2,f'{w} {m}: calculadora extra ({ncalc})')
+                  for kc in range(ncalc):
+                    if ncalc>1: pg.click(f'#painel [data-calc="{kc}"]');ok(pg.get_attribute(f'#painel [data-calc="{kc}"]','aria-selected')=='true',f'{w} {m}: calc {kc} ativa')
                     ok(pg.query_selector('#draw svg') is not None or m=='ca',f'{w} {m}: sem desenho')
                     mem=pg.inner_text('#memorial');ok(len(mem)>50 and 'NaN' not in mem and 'Infinity' not in mem,f'{w} {m}: memorial inválido')
                     ok('NaN' not in pg.inner_text('#tiles'),f'{w} {m}: NaN nos resultados')
@@ -64,6 +68,7 @@ with sync_playwright() as p:
                             ok('NaN' not in pg.inner_text('#memorial'),f'{w} {m}: NaN com {sid}[{i}]')
                     for chip in pg.query_selector_all('.chip'): chip.click()
                     ok('NaN' not in pg.inner_text('#memorial'),f'{w} {m}: NaN após atalhos')
+                  if ncalc>1: pg.click('#painel [data-calc="0"]')
                 if tab=='quiz':
                     nq=len(pg.query_selector_all('#ql .q'));ok(nq==15,f'{w} {m}: 15 questões ({nq})')
                     for i in range(nq):

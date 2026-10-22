@@ -191,6 +191,12 @@ p.pill{margin:0;display:block;max-width:420px;font-family:var(--f-body);font-wei
 .checklist .chk input{margin-top:3px;flex:none}
 .checklist .chk:has(input:checked){border-color:var(--pos);background:var(--pos-fill)}
 
+/* seletor de calculadoras da disciplina */
+.calcs{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 16px;padding-bottom:12px;border-bottom:1px dashed var(--line)}
+.calc-op{font-family:var(--f-mono);font-size:.75rem;padding:6px 11px;border:1.5px solid var(--line);background:var(--sheet);color:var(--ink);cursor:pointer}
+.calc-op:hover{border-color:var(--steel)}
+.calc-op.on{border-color:var(--ink);background:var(--ink);color:var(--sheet);font-weight:600}
+
 </style>
 <div class="wrap">
   <header>
@@ -407,6 +413,75 @@ const calc={
   orcamento(itens,bdi,qtd){
     const linhas=itens.map(i=>({...i,sub:i.coef*i.preco})),cu=linhas.reduce((s,l)=>s+l.sub,0),pu=cu*(1+bdi/100);
     return{linhas,cu,pu,total:pu*qtd};
+  },
+  // ===== Fase 2 =====
+  // Estribos: NBR 6118, modelo de cálculo I (θ = 45°, estribos a 90°). Unidades: kN e cm.
+  estribos(bw,h,fck,Vk,phi=5,aco=50,ramos=2,c=4){
+    const d=h-c,fcd=fck/14,Vd=1.4*Vk,av2=1-fck/250,VRd2=0.27*av2*fcd*bw*d;
+    const fctm=0.3*fck**(2/3),fctd=0.7*fctm/1.4/10,Vc=0.6*fctd*bw*d,fywd=Math.min(aco/1.15,43.5);
+    const Vsw=Math.max(0,Vd-Vc),aswS=Vsw/(0.9*d*fywd),rmin=0.2*fctm/(aco*10),aswMin=rmin*bw,asw=Math.max(aswS,aswMin);
+    const lim=Vd<=0.67*VRd2,smax=lim?Math.min(0.6*d,30):Math.min(0.3*d,20),Aphi=ramos*Math.PI*(phi/10)**2/4;
+    const s=Math.max(5,Math.min(Math.floor(Aphi/asw+1e-9),Math.floor(smax)));
+    return{d,Vd,av2,VRd2,fctm,fctd,Vc,fywd,Vsw,aswS,rmin,aswMin,asw,smax,lim,Aphi,s,ok:Vd<=VRd2,minGoverna:aswMin>=aswS};
+  },
+  // Laje apoiada nos 4 lados: solução exata de Navier (série dupla), ν = 0,2. lx = menor vão (m), p em kN/m².
+  navier(lx,ly,nu=0.2,termos=99){
+    let mx=0,my=0,w=0;const a=lx,b=ly;
+    for(let m=1;m<=termos;m+=2)for(let n=1;n<=termos;n+=2){const am=m/a,bn=n/b,s=((m-1)/2+(n-1)/2)%2?-1:1,den=m*n*(am*am+bn*bn)**2;
+      w+=s/den;mx+=s*(am*am+nu*bn*bn)/den;my+=s*(bn*bn+nu*am*am)/den}
+    // coeficientes adimensionais: M = c · p · lx² ; w = cw · p · lx⁴ / D
+    const P4=Math.PI**4,P6=Math.PI**6;return{cx:16/P4*mx/(lx*lx),cy:16/P4*my/(lx*lx),cw:16/P6*w/(lx**4)}
+  },
+  armLaje(Mk,h,fck,c=2.5){// por metro de largura: Mk em kN·m/m
+    const bw=100,d=h-c-0.5,fcd=fck/14,fyd=50/1.15,Md=1.4*Mk*100,k=Md/(0.425*bw*d*d*fcd);
+    if(k>=1)return{d,Md,inviavel:true};
+    const x=1.25*d*(1-Math.sqrt(1-k)),As=Md/(fyd*(d-0.4*x)),Asmin=0.67*0.15/100*bw*h,Asf=Math.max(As,Asmin),smax=Math.min(20,2*h);
+    let esc=null;for(const f of [5,6.3,8,10,12.5]){const a=Math.PI*(f/10)**2/4,s=Math.floor(Math.min(100*a/Asf,smax)+1e-9);if(s>=10){esc={f,s,area:100*a/s};break}}
+    if(!esc){const a=Math.PI*1.25**2/4,s=Math.max(7,Math.floor(100*a/Asf));esc={f:12.5,s,area:100*a/s}}
+    return{d,Md,x,xd:x/d,As,Asmin,Asf,smax,esc,inviavel:false};
+  },
+  lajeMomentos(l1,l2,h,g,q,fck){
+    const lx=Math.min(l1,l2),ly=Math.max(l1,l2),lam=ly/lx,p=25*h/100+g+q,uma=lam>2;
+    let Mx,My,cw;
+    if(uma){Mx=p*lx*lx/8;My=0;cw=5/384}else{const nv=calc.navier(lx,ly);Mx=nv.cx*p*lx*lx;My=nv.cy*p*lx*lx;cw=nv.cw}
+    const ax=calc.armLaje(Mx,h,fck);let ay;
+    if(uma){const As=Math.max(0.2*ax.Asf,0.9,0.5*0.15/100*100*h);let esc=null;for(const f of [5,6.3,8]){const a=Math.PI*(f/10)**2/4,s=Math.floor(Math.min(100*a/As,33)+1e-9);if(s>=10){esc={f,s,area:100*a/s};break}}ay={dist:true,Asf:As,esc}}
+    else ay=calc.armLaje(My,h,fck,3.5);
+    const Ecs=0.85*5600*Math.sqrt(fck),D=Ecs*1000*(h/100)**3/12,ps=25*h/100+g+0.3*q;
+    const wi=cw*ps*lx**4/D*1000,wt=wi*2.32,lim=1000*lx/250;
+    return{lx,ly,lam,p,uma,Mx,My,ax,ay,Ecs,ps,wi,wt,lim,okF:wt<=lim};
+  },
+  // Pré-dimensionamento de pilar pela área de influência (estimativa para o lançamento)
+  preDimPilar(area,pav,carga,tipo,fck,b){
+    const alfa={intermediario:1.3,extremidade:1.5,canto:1.8}[tipo],Nk=area*carga*pav,Nd=1.4*alfa*Nk,fcd=fck/14,sig=0.85*fcd+0.01*(42-0.85*fcd);
+    const bb=Math.max(b,14),gn=bb<19?1.95-0.05*bb:1,Ac=gn*Nd/sig,hh=Math.max(bb,Math.ceil(Ac/bb/5-1e-9)*5),hf=Math.max(hh,Math.ceil(360/bb/5-1e-9)*5);
+    return{alfa,Nk,Nd,gn,fcd,sig,Ac,b:bb,h:hf,Acf:bb*hf,parede:hf>5*bb};
+  },
+  // Tanque séptico (NBR 7229) e sumidouro (NBR 13969)
+  fossa(N,C,Lf,anos,temp){
+    const cd=N*C,T=cd<=1500?1:cd<=3000?0.92:cd<=4500?0.83:cd<=6000?0.75:cd<=7500?0.67:cd<=9000?0.58:0.5;
+    const K={frio:[94,134,174,214,254],medio:[65,105,145,185,225],quente:[57,97,137,177,217]}[temp][anos-1];
+    const V=1000+N*(C*T+K*Lf),hu=V<=6000?1.2:V<=10000?1.5:1.8,Ab=V/1000/hu;let L=Math.sqrt(2*Ab),W=L/2;if(W<0.8){W=0.8;L=Math.max(Ab/W,1.6)}
+    return{cd,T,K,V,hu,Ab,L:Math.ceil(L*20)/20,W:Math.ceil(W*20)/20};
+  },
+  sumidouro(cd,Ci,D,n=1){const A=cd/Ci/n,fundo=Math.PI*D*D/4,h=Math.max(0,(A-fundo)/(Math.PI*D));return{A:cd/Ci,An:A,fundo,h,hAdot:Math.ceil(h*10)/10}},
+  caixaGordura(cozinhas,pessoas){if(cozinhas<=1)return{tipo:'simples (CGS)',V:31,D:40};if(cozinhas<=2)return{tipo:'dupla (CGD)',V:120,D:60};const V=2*pessoas+20;return{tipo:'especial (CGE)',V,D:null}},
+  // Dosagem experimental pelo método ABCP (estimativa de partida)
+  ABCP_AGUA:{'40':{9.5:220,19:195,25:190,32:185,38:180},'60':{9.5:225,19:200,25:195,32:190,38:185},'80':{9.5:230,19:205,25:200,32:195,38:190}},
+  abcpBrita(MF,Dmax){const base={9.5:0.645,19:0.705,25:0.770,32:0.795,38:0.820}[Dmax];return base-0.1*(MF-1.8)},
+  dosagem(fck,sd,slump,Dmax,MF,classe,muBrita=1500){
+    const fcj=fck+1.65*sd,acAbrams=Math.log(93.2/fcj)/Math.log(7.3),acMax=[0.65,0.60,0.55,0.45][classe-1],cMin=[260,280,320,360][classe-1],fckMin=[20,25,30,40][classe-1];
+    const ac=Math.floor(Math.min(acAbrams,acMax)*100+1e-9)/100,Ca=calc.ABCP_AGUA[slump][Dmax];let C=Ca/ac;const cMinGov=C<cMin;C=Math.max(C,cMin);
+    const Vb=calc.abcpBrita(MF,Dmax),Cb=Vb*muBrita,Va=1-(C/3100+Cb/2700+Ca/1000),Cm=Va*2650;
+    return{fcj,acAbrams,acMax,ac,Ca,C,cMin,cMinGov,fckMin,okFck:fck>=fckMin,Vb,Cb,Va,Cm,a:Cm/C,p:Cb/C,sacos:C/50};
+  },
+  // Quantitativo de parede: blocos, argamassa de assentamento, chapisco e reboco
+  BLOCOS:{'Cerâmico 9 × 19 × 19':[19,19,9],'Cerâmico 14 × 19 × 29':[29,19,14],'Concreto 14 × 19 × 39':[39,19,14],'Tijolo maciço 5 × 10 × 20 (meia vez)':[20,5,10]},
+  parede(comp,alt,vaos,bloco,junta,reboco,faces,traco){
+    const [c,a,e]=calc.BLOCOS[bloco],j=junta/100,A=Math.max(0,comp*alt-vaos),nb=1/((c/100+j)*(a/100+j)),blocos=Math.ceil(A*nb*1.05);
+    const Vass=A*(1-nb*c*a/1e4)*e/100*1.1,Vreb=A*faces*reboco/100*1.1,Vch=A*faces*0.005*1.1,Vtot=Vass+Vreb;
+    const [ci,ca,ar]=traco,cim=Vtot*ci/ar*1420+Vch*1/3*1420,cal=Vtot*ca/ar*600,areia=Vtot+Vch*1;
+    return{A,nb,blocos,Vass,Vreb,Vch,cim,cal,areia,sacosC:Math.ceil(cim/50),sacosCal:Math.ceil(cal/20)};
   }
 };
 // CALC-END
@@ -755,7 +830,7 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 ];
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.3.0';
+const VERSAO_APP='1.4.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -811,7 +886,7 @@ const MODS=CATALOGO;MODS.forEach(m=>{m.carregado=false});
 const modById=id=>MODS.find(m=>m.id===id);
 function placarMod(m){const r=prog[m.id]||{},n=Object.keys(r).length,ok=m.quiz.filter((q,i)=>r[i]===q.c).length;return{n,ok,tot:m.quiz.length}}
 function tagMod(m){const p=placarMod(m);return p.n===p.tot?`<span class="tag feito">✓ ${p.ok}/${p.tot}</span>`:p.n?`<span class="tag">${p.n}/${p.tot}</span>`:''}
-function bindNav(root){root.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.m;st.tab='teoria';st.ex=0;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})})}
+function bindNav(root){root.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.m;st.tab='teoria';st.ex=0;st.calc=0;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})})}
 function trilha(){
   const mob=matchMedia('(max-width:820px)').matches;
   let h=`<button class="disc${st.mod==='inicio'?' ativo':''}" data-m="inicio"><span class="cod">00</span>Início</button>`;
@@ -847,8 +922,11 @@ function render(){
   if(st.tab==='teoria')p.innerHTML=m.teoria;
   else if(st.tab==='exemplo')renderExemplos(m,p);
   else if(st.tab==='obra')renderObra(m,p);
-  else if(st.tab==='sim'){p.innerHTML=m.sim.html();if(m.sim.init)m.sim.init();
-    p.querySelectorAll('.ctrl input[type=range],.ctrl select').forEach(i=>i.addEventListener('input',()=>{outs();m.sim.update()}));outs();m.sim.update();}
+  else if(st.tab==='sim'){const lista=[m.sim,...(m.extras||[])],k=Math.min(st.calc||0,lista.length-1),s=lista[k];
+    p.innerHTML=(lista.length>1?`<div class="calcs" role="tablist" aria-label="Calculadoras desta disciplina">${lista.map((c,i)=>`<button class="calc-op${i===k?' on':''}" data-calc="${i}" role="tab" aria-selected="${i===k}">${c.nome||'Principal'}</button>`).join('')}</div>`:'')+s.html();
+    p.querySelectorAll('[data-calc]').forEach(b=>b.onclick=()=>{st.calc=+b.dataset.calc;render()});
+    if(s.init)s.init();
+    p.querySelectorAll('.ctrl input[type=range],.ctrl select').forEach(i=>i.addEventListener('input',()=>{outs();s.update()}));outs();s.update();}
   else if(st.tab==='sig'&&m.sig){p.innerHTML=m.sig.html();m.sig.init()}
   else renderQuiz(m,p);
   const ir=$('irSim');if(ir)ir.onclick=()=>{st.tab='sim';render()};
@@ -1572,7 +1650,7 @@ teoria:`<p>O concreto aguenta muito bem ser apertado (compressão), mas trinca f
 <div class="formula">Md = 1,4·Mk     fcd = fck/1,4     d ≈ h − 4 cm</div>
 <div class="formula">x = 1,25·d·[1 − √(1 − Md / (0,425·bw·d²·fcd))]</div>
 <div class="formula">As = Md / [fyd·(d − 0,4·x)]     As,mín = ρmín·bw·h (0,15% até C30)</div>
-<div class="dica"><b>Dica de projeto</b>Se x/d passar de 0,45, não adianta só pôr mais aço. Aumente a altura da viga ou use concreto mais resistente.</div>`,
+<div class="dica"><b>Dica de projeto</b>Se x/d passar de 0,45, não adianta só pôr mais aço. Aumente a altura da viga ou use concreto mais resistente.</div><h3>Cisalhamento e estribos (modelo I)</h3><div class="formula">VRd2 = 0,27 · (1 − fck/250) · fcd · bw · d     (esmagamento das bielas)</div><div class="formula">Vc = 0,6 · fctd · bw · d     Asw/s = (Vd − Vc) / (0,9 · d · fywd)     ρw,mín = 0,2 · fctm / fywk</div><p>O estribo "costura" as fissuras inclinadas que o cortante abre perto dos apoios. A calculadora <b>Estribos</b>, no simulador, faz essa verificação completa.</p>`,
 exemplo:`<h3>Viga 20 × 50 com Mk = 100 kN·m</h3><p>Concreto C25 (fck = 25 MPa), aço CA-50, cobrimento e estribo somando cerca de 4 cm até o centro da barra.</p>
 <ol class="passos"><li><b>Altura útil.</b> d = 50 − 4 = <b>46 cm</b>.</li>
 <li><b>Momento de cálculo.</b> Md = 1,4 × 100 = 140 kN·m = <b>14.000 kN·cm</b>.</li>
@@ -1582,7 +1660,29 @@ exemplo:`<h3>Viga 20 × 50 com Mk = 100 kN·m</h3><p>Concreto C25 (fck = 25 MPa)
 <div class="dica"><b>Confira no simulador</b>bw = 20, h = 50, fck = 25 e Mk = 100.</div>`,
 exemplos:[{"nivel": "facil", "titulo": "Viga 15 × 40 com Mk = 50 kN·m", "html": "<p>Concreto C25, aço CA-50.</p><ol class=\"passos\"><li><b>Altura útil.</b> d = 40 − 4 = <b>36 cm</b>. Md = 1,4 × 50 = 70 kN·m = 7.000 kN·cm.</li><li><b>Linha neutra.</b> x = 12,4 cm. x/d = <b>0,34</b> ≤ 0,45 ✓</li><li><b>Armadura.</b> As = <b>5,19 cm²</b>, bem acima do mínimo de 0,90 cm².</li><li><b>Barras.</b> Na largura de 15 cm cabem <b>2 φ 20 mm</b> (6,28 cm²). Outra opção seria 3 φ 16 em duas camadas.</li></ol>"}, {"nivel": "obra", "titulo": "Viga dentro da parede de bloco de 14 cm", "html": "<p>Em casas, a viga costuma ter a largura do bloco: 14 × 30 cm. Momento característico de 25 kN·m, C25.</p><ol class=\"passos\"><li><b>Altura útil.</b> d = 30 − 4 = <b>26 cm</b>.</li><li><b>Linha neutra.</b> x = 9,2 cm. x/d = <b>0,36</b> ✓</li><li><b>Armadura.</b> As = <b>3,61 cm²</b> → <b>2 φ 16 mm</b> (4,02 cm²).</li><li><b>Cuidado na obra.</b> Com 14 cm de largura e cobrimento de 2,5 a 3 cm, sobra pouco espaço para a brita passar entre as barras. Use brita 1 e vibre bem para não formar bicheira.</li></ol><div class=\"dica\"><b>Larguras pequenas</b>Viga de 14 cm com 3 ou mais barras de 16 mm numa camada não cabe. Confira o espaçamento antes de concretar.</div>"}],
 obra:{"intro": "No concreto armado, o projeto só funciona se a obra executar o que está desenhado: aço na posição certa, cobrimento correto e concreto bem adensado e curado.", "erros": [["Cobrimento insuficiente", "Aço encostado na forma: em poucos anos aparece ferrugem e o concreto estoura."], ["Bicheira", "Concreto mal vibrado deixa vazios com brita aparente, principalmente no fundo de vigas e pé de pilares."], ["Água a mais no caminhão", "Cada balde de água adicionado para \"facilitar\" derruba a resistência do concreto."], ["Cura esquecida", "Concreto que seca rápido demais fissura e perde resistência na superfície."]], "checklist": ["Bitolas, quantidades e posições das barras conferidas com o projeto antes da concretagem", "Espaçadores (cocadas ou plásticos) garantindo o cobrimento em todas as faces", "Formas limpas, travadas, estanques e molhadas antes do lançamento", "Nota fiscal do concreto com fck, slump e horário de saída da usina", "Slump test feito na chegada do caminhão e corpos de prova moldados", "Concreto vibrado em camadas, sem encostar o vibrador na armadura", "Cura úmida mantida por pelo menos 7 dias"], "dica": "Antes de liberar a concretagem, tire fotos da armadura de cada peça com uma trena aparecendo. Isso protege você e o cliente se surgir dúvida depois."},
-sim:{html:()=>simWrap(rng('cB','Largura bw',12,40,1,20,'cm')+rng('cH','Altura h',25,90,5,50,'cm')+sel('cF','Concreto',[[20,'C20 (fck 20 MPa)'],[25,'C25 (fck 25 MPa)',1],[30,'C30 (fck 30 MPa)'],[35,'C35'],[40,'C40'],[45,'C45'],[50,'C50']])+rng('cM','Momento Mk',5,400,5,100,'kN·m','Valor característico (sem majorar)')),
+extras:[{nome:'Estribos (cisalhamento)',
+html:()=>`<p class="nota">Cortante pela NBR 6118, modelo de cálculo I: bielas a 45° e estribos verticais de CA-50. Use o maior cortante, junto ao apoio.</p>`+simWrap(`<div class="row">${rng('esB','Largura bw',12,40,1,15,'cm')}${rng('esH','Altura h',25,100,1,40,'cm')}</div>`+sel('esF','Concreto',[[20,'C20'],[25,'C25',1],[30,'C30'],[35,'C35'],[40,'C40']])+rng('esV','Cortante característico Vk',5,400,1,60,'kN','Vd = 1,4 × Vk')+sel('esP','Diâmetro do estribo',[[5,'φ 5 mm',1],[6.3,'φ 6,3 mm'],[8,'φ 8 mm'],[10,'φ 10 mm']])+sel('esR','Ramos do estribo',[[2,'2 ramos (estribo simples)',1],[4,'4 ramos (estribo duplo)']])),
+update(){const bw=V_('esB'),h=V_('esH'),fck=+$('esF').value,phi=+$('esP').value,ram=+$('esR').value,r=calc.estribos(bw,h,fck,V_('esV'),phi,50,ram);
+  const est=r.ok?`φ ${br(phi,phi%1?1:0)} c/ ${r.s} cm`:'—';
+  $('tiles').innerHTML=tiles([['Vd',br(r.Vd,1)+' kN'],['VRd2 (bielas)',br(r.VRd2,1)+' kN'],['Asw/s necessário',br(100*r.asw,2)+' cm²/m'],['Estribos',est,1]])+`<span class="pill ${r.ok?'ok':'alerta'}">${r.ok?(r.minGoverna?'Armadura mínima governa':'Seção atende'):'Bielas esmagam: aumente a seção ou o fck'}</span>`;
+  const sc=Math.min(150/h,110/bw,5),W=bw*sc,H=h*sc,ox=40,oy=36,cb=3*sc;
+  let s=T_('SEÇÃO',ox,18)+`<rect x="${ox}" y="${oy}" width="${W}" height="${H}" style="fill:var(--concrete,var(--grid));stroke:var(--ink);stroke-width:1.5"/>`+`<rect x="${ox+cb}" y="${oy+cb}" width="${W-2*cb}" height="${H-2*cb}" style="fill:none;stroke:var(--steel);stroke-width:2"/>`;
+  if(ram===4)s+=`<rect x="${ox+cb+(W-2*cb)*0.25}" y="${oy+cb}" width="${(W-2*cb)*0.5}" height="${H-2*cb}" style="fill:none;stroke:var(--steel);stroke-width:1.5"/>`;
+  s+=T(ox+W/2,oy+H+16,bw+' cm','muted','text-anchor="middle" font-size="10"')+T(ox+W+6,oy+H/2,h+' cm','muted','font-size="10"');
+  const ex=220,ew=380,ey=40,eh=Math.min(110,h*2.2);s+=T_('ELEVAÇÃO · 1 METRO DE VIGA JUNTO AO APOIO',ex,18)+`<rect x="${ex}" y="${ey}" width="${ew}" height="${eh}" style="fill:none;stroke:var(--ink);stroke-width:1.5"/>`+`<path d="M${ex} ${ey+eh} l-8 14 h16z" style="fill:none;stroke:var(--ink)"/>`;
+  if(r.ok){for(let x=5;x<=100;x+=r.s)s+=Ln(ex+ew*x/100,ey+4,ex+ew*x/100,ey+eh-4,'steel',2);s+=T(ex+ew/2,ey+eh+18,`estribos a cada ${r.s} cm (máximo ${br(r.smax,0)} cm)`,'muted','text-anchor="middle" font-size="10"')}
+  for(let i=0;i<4;i++)s+=Ln(ex+20+i*eh*0.9,ey+eh,ex+20+(i+1)*eh*0.9,ey,'neg',1,'stroke-dasharray="4 3" opacity=".6"');
+  s+=usoBarras([['Bielas comprimidas (Vd / VRd2)',r.Vd/r.VRd2,br(r.Vd,1)+' de '+br(r.VRd2,1)+' kN']],ex,ey+eh+44,ew);
+  $('draw').innerHTML=SVG(640,ey+eh+110,'Seção e estribos da viga',s);
+  $('memorial').textContent=`bw × h = ${bw} × ${h} cm · d = ${br(r.d,1)} cm · C${fck} · CA-50
+1) Vd = 1,4 × ${br(V_('esV'),1)} = ${br(r.Vd,2)} kN
+2) Bielas: αv2 = 1 − ${fck}/250 = ${br(r.av2,3)} · VRd2 = 0,27 × αv2 × fcd × bw × d = ${br(r.VRd2,1)} kN ${r.ok?'≥':'<'} Vd ${r.ok?'✓':'✗'}
+3) Concreto: fctm = 0,3 × fck^(2/3) = ${br(r.fctm,3)} MPa · fctd = 0,7 fctm / 1,4 = ${br(10*r.fctd,3)} MPa · Vc = 0,6 fctd bw d = ${br(r.Vc,1)} kN
+4) Vsw = Vd − Vc = ${br(r.Vsw,1)} kN → Asw/s = Vsw / (0,9 d fywd) = ${br(100*r.aswS,2)} cm²/m (fywd = ${br(10*r.fywd,0)} MPa)
+5) Mínimo: ρw = 0,2 fctm / fywk = ${br(100*r.rmin,4)}% → Asw/s,mín = ${br(100*r.aswMin,2)} cm²/m → adotado ${br(100*r.asw,2)} cm²/m
+6) Espaçamento máximo: Vd ${r.lim?'≤':'>'} 0,67 VRd2 → smáx = ${r.lim?'mín(0,6d ; 30 cm)':'mín(0,3d ; 20 cm)'} = ${br(r.smax,1)} cm
+7) ${ram} ramos de φ ${br(phi,1)} mm = ${br(r.Aphi,3)} cm² → s = ${r.ok?r.s+' cm':'—'}${r.ok?` · fornecido ${br(100*r.Aphi/r.s,2)} cm²/m`:''}`;}}],
+sim:{nome:'Flexão',html:()=>simWrap(rng('cB','Largura bw',12,40,1,20,'cm')+rng('cH','Altura h',25,90,5,50,'cm')+sel('cF','Concreto',[[20,'C20 (fck 20 MPa)'],[25,'C25 (fck 25 MPa)',1],[30,'C30 (fck 30 MPa)'],[35,'C35'],[40,'C40'],[45,'C45'],[50,'C50']])+rng('cM','Momento Mk',5,400,5,100,'kN·m','Valor característico (sem majorar)')),
 update(){const bw=V_('cB'),h=V_('cH'),fck=V_('cF'),Mk=V_('cM'),r=calc.flexao(bw,h,fck,Mk);
 if(r.inviavel){$('tiles').innerHTML=tiles([['Md',br(r.Md/100)+' kN·m'],['d',br(r.d,1)+' cm'],['Situação','Seção pequena',1],['As','—']])+'<span class="pill alerta">Seção não suporta o momento. Aumente h ou bw.</span>';
 $('draw').innerHTML='';$('memorial').textContent=`Md = ${br(r.Md)} kN·cm é maior que a capacidade da seção (termo da raiz negativo).\nAumente a altura h, a largura bw ou o fck.`;return;}
@@ -1704,7 +1804,7 @@ teoria:`<p>O traço é a receita do concreto. Escrito como <b>1 : a : p : x</b>,
 <div class="formula">Consumo  C = 1000 / (1/γc + a/γa + p/γp + x)   kg/m³</div>
 <div class="formula">γc = 3,10 · γa = 2,65 · γp = 2,70 (massas específicas, kg/dm³)</div>
 <div class="formula">Latas por saco = (a × 50 / massa unitária) / 18   areia 1,50 kg/L · brita 1,45 kg/L</div>
-<div class="dica"><b>Erro clássico</b>Jogar água na betoneira para o concreto ficar mais mole. Cada litro a mais derruba a resistência. Para trabalhabilidade, use aditivo plastificante.</div>`,
+<div class="dica"><b>Erro clássico</b>Jogar água na betoneira para o concreto ficar mais mole. Cada litro a mais derruba a resistência. Para trabalhabilidade, use aditivo plastificante.</div><h3>Dosagem pelo fck (método ABCP)</h3><div class="formula">fcj = fck + 1,65 · sd     a/c pela curva de Abrams do cimento, limitado pela durabilidade (NBR 12655)</div><p>Depois saem a água (pelo abatimento), o cimento, a brita (pelo módulo de finura da areia) e, por diferença, a areia. A calculadora <b>Dosagem pelo fck</b> faz o caminho todo e mostra o traço em massa.</p>`,
 exemplo:`<h3>1 m³ de concreto no traço 1 : 2 : 3 : 0,55</h3>
 <ol class="passos"><li><b>Consumo.</b> C = 1000 / (1/3,10 + 2/2,65 + 3/2,70 + 0,55) = 1000 / 2,738 ≈ <b>365 kg/m³</b>.</li>
 <li><b>Sacos.</b> 365 / 50 = 7,3 → <b>8 sacos</b> de cimento.</li>
@@ -1714,7 +1814,29 @@ exemplo:`<h3>1 m³ de concreto no traço 1 : 2 : 3 : 0,55</h3>
 <div class="dica"><b>Confira no simulador</b>Use o atalho 1:2:3 e volume de 1 m³.</div>`,
 exemplos:[{"nivel": "facil", "titulo": "Meio metro cúbico de concreto 1 : 3 : 4", "html": "<p>Concreto para um contrapiso armado, traço 1 : 3 : 4 em massa, a/c = 0,65, volume de 0,5 m³.</p><ol class=\"passos\"><li><b>Consumo de cimento.</b> C ≈ <b>279 kg/m³</b>.</li><li><b>Para 0,5 m³.</b> 279 × 0,5 = 139 kg → <b>3 sacos</b> de 50 kg.</li><li><b>Por saco.</b> Areia ≈ <b>5,6 latas</b> de 18 L, brita ≈ <b>7,7 latas</b> e água ≈ <b>32,5 L</b>.</li><li><b>Leitura.</b> Medir em latas padronizadas e sempre na mesma ordem garante concreto igual em todas as betonadas.</li></ol>"}, {"nivel": "obra", "titulo": "O pedreiro quer pôr mais água", "html": "<p>Traço 1 : 2 : 3 previsto com a/c 0,50. O pedreiro reclama que está \"duro\" e quer subir para 0,70.</p><ol class=\"passos\"><li><b>Com a/c 0,50.</b> C ≈ <b>372 kg/m³</b> (cerca de 8 sacos por m³), com 25 L de água por saco.</li><li><b>Com a/c 0,70.</b> Mesmo traço seco, mas 35 L por saco. A resistência cai muito, pela lei de Abrams.</li><li><b>Quanto se perde.</b> Pela curva usual de Abrams, passar de 0,50 para 0,70 derruba a resistência em torno de 35% a 40%.</li><li><b>Solução certa.</b> Para ganhar trabalhabilidade sem perder resistência, use aditivo plastificante ou aumente a pasta inteira (cimento e água juntos), mantendo o a/c.</li></ol><div class=\"dica\"><b>Regra de canteiro</b>Água se mede, não se acerta no olho. Deixe um balde marcado com a quantidade por saco ao lado da betoneira.</div>"}],
 obra:{"intro": "Os materiais chegam à obra todos os dias. Receber, armazenar e dosar bem é o que garante que o concreto e a argamassa tenham a resistência do projeto.", "erros": [["Cimento guardado no chão", "Saco encostado no piso ou na parede puxa umidade e empedra."], ["Areia suja ou com argila", "Torrões de argila e matéria orgânica enfraquecem a pasta e causam manchas."], ["Medir por pá", "Cada pá tem um volume. O traço muda de uma betonada para outra."], ["Concreto lançado depois do tempo", "Concreto de usina deve ser lançado em até 2 h 30 da saída. Depois disso começa a pega."]], "checklist": ["Cimento em estrado, a 30 cm das paredes, em pilhas de no máximo 10 sacos e usado por ordem de chegada", "Areia e brita em baias separadas, sobre piso limpo, longe de terra", "Traço afixado na betoneira, com padiolas ou latas padronizadas", "Água medida por saco de cimento", "Nota fiscal do concreto usinado conferida: fck, slump, horário e volume", "Slump test e moldagem de corpos de prova em cada caminhão", "Aço armazenado fora do chão, separado por bitola e protegido da chuva"], "dica": "Guarde as notas fiscais e os resultados de rompimento dos corpos de prova. Se surgir dúvida sobre a estrutura, esses papéis são a prova de que o concreto foi o especificado."},
-sim:{html:()=>simWrap(`<div class="presets"><button class="chip" data-t="2,3,0.55">1:2:3 estrutural</button><button class="chip" data-t="2.5,3.5,0.6">1:2,5:3,5</button><button class="chip" data-t="3,4,0.65">1:3:4 contrapiso</button><button class="chip" data-t="4,5,0.75">1:4:5 magro</button></div>`+rng('tA','Areia a',1,5,0.5,2,'')+rng('tP','Brita p',1,6,0.5,3,'')+rng('tX','Água/cimento x',0.4,0.8,0.05,0.55,'')+rng('tV','Volume de concreto',0.5,20,0.5,1,'m³')),
+extras:[{nome:'Dosagem pelo fck (ABCP)',
+html:()=>`<p class="nota">Ponto de partida pelo método da ABCP, com os limites de durabilidade da NBR 12655. A curva de Abrams usada é uma média para cimento CP 32 aos 28 dias. Confirme sempre com betonada experimental e rompimento de corpos de prova.</p>`+simWrap(sel('dsF','Resistência desejada (fck)',[[20,'C20'],[25,'C25',1],[30,'C30'],[35,'C35'],[40,'C40']])+sel('dsS','Condição de preparo',[[4,'A · tudo medido em massa (sd = 4,0)'],[5.5,'B · cimento em massa, agregados em volume corrigido (sd = 5,5)',1],[7,'C · tudo em volume (sd = 7,0)']])+sel('dsC','Classe de agressividade',[[1,'I · rural, ambiente seco'],[2,'II · urbano',1],[3,'III · marinho ou industrial'],[4,'IV · respingos de maré, industrial agressivo']])+sel('dsA','Abatimento (slump)',[['40','40 a 60 mm'],['60','60 a 80 mm'],['80','80 a 100 mm',1]])+sel('dsD','Brita (dimensão máxima)',[[9.5,'Brita 0 · 9,5 mm'],[19,'Brita 1 · 19 mm',1],[25,'Brita 2 · 25 mm'],[32,'32 mm'],[38,'38 mm']])+rng('dsM','Módulo de finura da areia',1.8,3.6,0.1,2.6,'','Areia fina ~2,0 · média ~2,6 · grossa ~3,2')),
+update(){const fck=+$('dsF').value,sd=+$('dsS').value,cl=+$('dsC').value,r=calc.dosagem(fck,sd,$('dsA').value,+$('dsD').value,V_('dsM'),cl);
+  const cond=sd===7?15:sd===5.5?25:80,avisos=[];if(!r.okFck)avisos.push(`Classe ${['I','II','III','IV'][cl-1]} exige no mínimo C${r.fckMin}`);if(fck>cond)avisos.push(`A condição ${sd===7?'C':'B'} só vale até C${cond}`);
+  $('tiles').innerHTML=tiles([['fcj (28 dias)',br(r.fcj,1)+' MPa'],['a/c adotado',br(r.ac,2)],['Cimento',br(r.C,0)+' kg/m³ · '+br(r.sacos,1)+' sacos'],['Traço em massa',`1 : ${br(r.a,2)} : ${br(r.p,2)} : ${br(r.ac,2)}`,1]])+avisos.map(a=>`<span class="pill alerta">${a}</span>`).join(' ');
+  const gx=60,gy=40,gw=260,gh=180,ax=a=>gx+gw*(a-0.3)/0.55,fy=f=>gy+gh-gh*f/60;let s=T_('CURVA DE ABRAMS (CP 32, 28 DIAS)',gx,18);
+  s+=Ln(gx,gy+gh,gx+gw,gy+gh,'line')+Ln(gx,gy,gx,gy+gh,'line');for(let f=10;f<=60;f+=10)s+=Ln(gx,fy(f),gx+gw,fy(f),'grid')+T(gx-6,fy(f)+3,f,'muted','text-anchor="end" font-size="9"');
+  for(let a=0.3;a<=0.851;a+=0.1)s+=T(ax(a),gy+gh+14,br(a,1),'muted','text-anchor="middle" font-size="9"');
+  let d='';for(let a=0.3;a<=0.85;a+=0.01)d+=(d?'L':'M')+ax(a).toFixed(1)+' '+fy(Math.min(60,93.2/7.3**a)).toFixed(1);s+=`<path d="${d}" style="fill:none;stroke:var(--steel);stroke-width:2"/>`;
+  s+=Ln(ax(r.acMax),gy,ax(r.acMax),gy+gh,'neg',1,'stroke-dasharray="4 3"')+T(ax(r.acMax)+4,gy+12,'a/c máx '+br(r.acMax,2),'neg','font-size="9"');
+  s+=`<circle cx="${ax(r.ac)}" cy="${fy(93.2/7.3**r.ac)}" r="5" style="fill:var(--amber);stroke:var(--ink)"/>`+T(gx+gw/2,gy+gh+30,'relação água/cimento','muted','text-anchor="middle" font-size="9"');
+  const vol=[['Cimento',r.C/3100,'ink'],['Água',r.Ca/1000,'water'],['Areia',r.Cm/2650,'amber'],['Brita',r.Cb/2700,'soil']],bx=400,by=40,bh=190;let yy=by;s+=T_('1 m³ DE CONCRETO',bx,18);
+  vol.forEach(([n,v,c])=>{const hh=bh*v;s+=`<rect x="${bx}" y="${yy}" width="70" height="${hh}" style="fill:var(--${c});opacity:${c==='ink'?.8:.55};stroke:var(--line)"/>`+T(bx+80,yy+hh/2+4,`${n} · ${br(1000*v,0)} L`,'ink','font-size="10"');yy+=hh});
+  $('draw').innerHTML=SVG(640,262,'Curva de Abrams e composição do concreto',s);
+  $('memorial').textContent=`1) fcj = fck + 1,65 × sd = ${fck} + 1,65 × ${br(sd,1)} = ${br(r.fcj,2)} MPa
+2) Abrams (CP 32): fcj = 93,2 / 7,3^(a/c) → a/c = ${br(r.acAbrams,3)} · durabilidade: a/c ≤ ${br(r.acMax,2)} → adotado ${br(r.ac,2)}
+3) Água pelo abatimento e pela brita: ${r.Ca} L/m³
+4) Cimento = ${r.Ca} / ${br(r.ac,2)} = ${br(r.Ca/r.ac,0)} kg/m³${r.cMinGov?` → mínimo da classe: ${r.cMin} kg/m³`:` (mínimo da classe: ${r.cMin})`}
+5) Brita: volume compactado ${br(r.Vb,3)} m³/m³ (MF ${br(V_('dsM'),1)}) × 1.500 kg/m³ = ${br(r.Cb,0)} kg
+6) Areia: 1 − (${br(r.C,0)}/3.100 + ${br(r.Cb,0)}/2.700 + ${br(r.Ca/1000,3)}) = ${br(r.Va,3)} m³ × 2.650 = ${br(r.Cm,0)} kg
+7) Traço unitário em massa: 1 : ${br(r.a,2)} : ${br(r.p,2)} : ${br(r.ac,2)} · ${br(r.sacos,1)} sacos de 50 kg por m³
+   Massas específicas: cimento 3.100, areia 2.650 e brita 2.700 kg/m³. Ajuste a umidade da areia na obra.`;}}],
+sim:{nome:'Traço e consumo',html:()=>simWrap(`<div class="presets"><button class="chip" data-t="2,3,0.55">1:2:3 estrutural</button><button class="chip" data-t="2.5,3.5,0.6">1:2,5:3,5</button><button class="chip" data-t="3,4,0.65">1:3:4 contrapiso</button><button class="chip" data-t="4,5,0.75">1:4:5 magro</button></div>`+rng('tA','Areia a',1,5,0.5,2,'')+rng('tP','Brita p',1,6,0.5,3,'')+rng('tX','Água/cimento x',0.4,0.8,0.05,0.55,'')+rng('tV','Volume de concreto',0.5,20,0.5,1,'m³')),
 init(){document.querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const[a,p,x]=b.dataset.t.split(',');$('tA').value=a;$('tP').value=p;$('tX').value=x;outs();this.update()})},
 update(){const a=V_('tA'),p=V_('tP'),x=V_('tX'),vol=V_('tV'),r=calc.traco(a,p,x,vol);
 $('tiles').innerHTML=tiles([['Consumo',br(r.C,0)+' kg/m³'],['Cimento',r.sacos+' sacos',1],['Areia',br(r.areia)+' m³'],['Brita',br(r.brita)+' m³']])+(x<=0.6?'<span class="pill ok">a/c ≤ 0,60 · uso estrutural possível</span>':'<span class="pill alerta">a/c &gt; 0,60 · só uso não estrutural</span>');
@@ -1785,7 +1907,7 @@ teoria:`<p>Orçar é descobrir quanto custa cada serviço por unidade (m², m³,
 <div class="formula">Custo unitário = Σ (coeficiente × preço do insumo)</div>
 <div class="formula">Preço de venda = Custo direto × (1 + BDI)</div>
 <div class="formula">BDI (TCU) = [(1 + AC + S + R + G)·(1 + DF)·(1 + L) / (1 − I)] − 1</div>
-<div class="dica"><b>Valores de exemplo</b>Os preços do simulador são ilustrativos. Use sempre a tabela SINAPI ou cotação do seu estado e mês de referência.</div>`,
+<div class="dica"><b>Valores de exemplo</b>Os preços do simulador são ilustrativos. Use sempre a tabela SINAPI ou cotação do seu estado e mês de referência.</div><h3>Quantitativo de parede</h3><div class="formula">Blocos por m² = 1 / [(comprimento + junta) × (altura + junta)]     Reboco = área × faces × espessura</div><p>O orçamento começa no quantitativo. A calculadora <b>Quantitativo de parede</b> levanta blocos, argamassa, cimento, cal e areia de uma parede, já com perdas.</p>`,
 exemplo:`<h3>1 m² de alvenaria de bloco cerâmico</h3><p>Composição simplificada com preços de exemplo.</p>
 <ol class="passos"><li><b>Bloco cerâmico.</b> 13 un × R$ 3,10 = R$ 40,30</li><li><b>Argamassa.</b> 0,012 m³ × R$ 520,00 = R$ 6,24</li>
 <li><b>Pedreiro.</b> 0,85 h × R$ 32,00 = R$ 27,20</li><li><b>Servente.</b> 0,85 h × R$ 24,00 = R$ 20,40</li>
@@ -1793,7 +1915,24 @@ exemplo:`<h3>1 m² de alvenaria de bloco cerâmico</h3><p>Composição simplific
 <div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
 exemplos:[{"nivel": "facil", "titulo": "Preço de venda de 50 m² de piso", "html": "<p>Custo direto do piso cerâmico assentado: R$ 35,00 de material e R$ 25,00 de mão de obra com encargos, por m². BDI de 25%.</p><ol class=\"passos\"><li><b>Custo unitário.</b> 35 + 25 = <b>R$ 60,00/m²</b>.</li><li><b>Custo direto total.</b> 50 × 60 = <b>R$ 3.000,00</b>.</li><li><b>Preço de venda.</b> 3.000 × 1,25 = <b>R$ 3.750,00</b>, ou R$ 75,00/m².</li></ol>"}, {"nivel": "obra", "titulo": "Orçamento de um muro de divisa de 30 m", "html": "<p>Muro de 2 m de altura em bloco de concreto, com viga baldrame e reboco nas duas faces. BDI de 22%.</p><ol class=\"passos\"><li><b>Fundação.</b> 30 m de baldrame × R$ 120,00/m = <b>R$ 3.600,00</b>.</li><li><b>Alvenaria.</b> 30 × 2 = 60 m² × R$ 85,00 = <b>R$ 5.100,00</b>.</li><li><b>Chapisco e reboco.</b> 2 faces = 120 m² × R$ 32,00 = <b>R$ 3.840,00</b>.</li><li><b>Custo direto.</b> 3.600 + 5.100 + 3.840 = <b>R$ 12.540,00</b>.</li><li><b>Preço.</b> 12.540 × 1,22 = <b>R$ 15.298,80</b>.</li></ol><div class=\"dica\"><b>Quantitativo primeiro</b>Quase todo orçamento errado começa na medição. Confira as áreas pela planta e desconte vãos acima de 2 m² na alvenaria.</div>"}],
 obra:{"intro": "O orçamento só vale se a obra for medida e acompanhada. Comparar o previsto com o realizado todo mês é o que separa obra com lucro de obra com prejuízo.", "erros": [["Esquecer itens indiretos", "Canteiro, água, luz, transporte de entulho, ART e limpeza final ficam fora da conta."], ["BDI aplicado duas vezes", "Composições que já incluem lucro recebem BDI de novo."], ["Usar preço de referência desatualizado", "Tabela de meses atrás não reflete o preço do aço ou do cimento hoje."], ["Não medir o que foi executado", "Pagar o empreiteiro \"por estimativa\" sem medir a etapa."]], "checklist": ["Quantitativos conferidos pela planta, com memória de cálculo", "Composições com referência e data base (SINAPI, TCPO ou própria)", "Encargos sociais e BDI declarados separadamente", "Itens indiretos incluídos: canteiro, ART, consumo de água e energia, entulho", "Cronograma físico-financeiro anexado ao orçamento", "Medição mensal comparando previsto e realizado"], "dica": "Guarde uma reserva de contingência (5% a 10%) separada do BDI para obras de reforma. Elas quase sempre revelam surpresas quando a parede é aberta."},
-sim:{itens:[{n:'Bloco cerâmico 14×19×39',u:'un',coef:13,preco:3.10},{n:'Argamassa de assentamento',u:'m³',coef:0.012,preco:520},{n:'Pedreiro (com encargos)',u:'h',coef:0.85,preco:32},{n:'Servente (com encargos)',u:'h',coef:0.85,preco:24}],
+extras:[{nome:'Quantitativo de parede',
+html:()=>`<p class="nota">Levantamento de blocos, argamassa de assentamento, chapisco e reboco de uma parede, já com perdas (5% nos blocos, 10% nas argamassas). Regra prática: o volume de argamassa mista é próximo ao volume de areia seca usada.</p>`+simWrap(`<div class="row">${rng('qpC','Comprimento',1,50,0.1,10,'m')}${rng('qpH','Altura',2,6,0.05,2.8,'m')}</div>`+rng('qpV','Vãos a descontar (portas e janelas)',0,30,0.1,3.2,'m²')+sel('qpB','Bloco',Object.keys(calc.BLOCOS).map((k,i)=>[k,k,i===1]))+rng('qpJ','Espessura da junta',0.5,2,0.1,1,'cm')+rng('qpR','Espessura do reboco',1,4,0.5,2,'cm','Interno 1,5 a 2 cm · externo 2 a 3 cm')+sel('qpF','Faces rebocadas',[[2,'As duas faces',1],[1,'Uma face']])+sel('qpT','Traço da argamassa (cimento : cal : areia)',[['1:2:8','1 : 2 : 8 (assentamento e reboco interno)',1],['1:1:6','1 : 1 : 6 (reboco externo)'],['1:0:4','1 : 0 : 4 (sem cal)']])),
+update(){const tr=$('qpT').value.split(':').map(Number),r=calc.parede(V_('qpC'),V_('qpH'),V_('qpV'),$('qpB').value,V_('qpJ'),V_('qpR'),+$('qpF').value,tr);
+  $('tiles').innerHTML=tiles([['Área líquida',br(r.A,2)+' m²'],['Blocos',br(r.blocos,0)+' un',1],['Argamassa total',br(r.Vass+r.Vreb,2)+' m³'],['Cimento / cal / areia',`${r.sacosC} sc · ${r.sacosCal} sc · ${br(r.areia,2)} m³`,1]]);
+  const [cb,ab]=calc.BLOCOS[$('qpB').value],L=V_('qpC'),H=V_('qpH'),sc=Math.min(500/L,200/H),ox=40,oy=40,W=L*sc,Hh=H*sc,bw=(cb/100+V_('qpJ')/100)*sc,bh=(ab/100+V_('qpJ')/100)*sc;
+  let s=T_('ELEVAÇÃO DA PAREDE',ox,18)+`<clipPath id="qpcl"><rect x="${ox}" y="${oy}" width="${W}" height="${Hh}"/></clipPath><g clip-path="url(#qpcl)"><rect x="${ox}" y="${oy}" width="${W}" height="${Hh}" style="fill:var(--amber);opacity:.25"/>`;
+  if(bh>2.5){let row=0;for(let y=oy+Hh;y>oy-bh;y-=bh,row++){s+=Ln(ox,y,ox+W,y,'line',0.6);if(bw>2.5)for(let x=ox+(row%2?bw/2:0);x<ox+W;x+=bw)s+=Ln(x,y,x,y-bh,'line',0.6)}}
+  const va=Math.min(V_('qpV'),L*H*0.8);if(va>0){const vw=Math.min(W*0.5,Math.sqrt(va)*sc*1.1),vh=Math.min(Hh*0.8,va*sc*sc/vw);s+=`<rect x="${ox+W/2-vw/2}" y="${oy+Hh-vh}" width="${vw}" height="${vh}" style="fill:var(--sheet);stroke:var(--ink);stroke-width:1.5"/>`+T(ox+W/2,oy+Hh-vh/2+4,'vãos '+br(V_('qpV'),1)+' m²','muted','text-anchor="middle" font-size="10"')}
+  s+=`</g><rect x="${ox}" y="${oy}" width="${W}" height="${Hh}" style="fill:none;stroke:var(--ink);stroke-width:2"/>`+T(ox+W/2,oy+Hh+16,br(L,2)+' m','muted','text-anchor="middle" font-size="10"')+T(ox+W+6,oy+Hh/2,br(H,2)+' m','muted','font-size="10"');
+  $('draw').innerHTML=SVG(640,oy+Hh+30,'Elevação da parede com os blocos',s);
+  $('memorial').textContent=`1) Área = ${br(L,2)} × ${br(H,2)} − ${br(V_('qpV'),2)} = ${br(r.A,2)} m²
+2) Blocos: 1 / ((${cb} + ${br(V_('qpJ'),1)}) × (${ab} + ${br(V_('qpJ'),1)}) cm²) = ${br(r.nb,2)} un/m² → ${br(r.A*r.nb,0)} + 5% = ${r.blocos} un
+3) Assentamento: (1 − área dos blocos) × espessura da parede + 10% = ${br(r.Vass,3)} m³
+4) Reboco: ${br(r.A,2)} m² × ${+$('qpF').value} face(s) × ${br(V_('qpR'),1)} cm + 10% = ${br(r.Vreb,3)} m³ · chapisco 1:3 com 5 mm = ${br(r.Vch,3)} m³
+5) Traço ${tr.join(' : ')} em volume: areia ≈ volume de argamassa → cimento = V × ${tr[0]}/${tr[2]} × 1.420 kg/m³ · cal = V × ${tr[1]}/${tr[2]} × 600 kg/m³
+6) Cimento ${br(r.cim,0)} kg = ${r.sacosC} sacos de 50 kg · cal ${br(r.cal,0)} kg = ${r.sacosCal} sacos de 20 kg · areia ${br(r.areia,2)} m³
+   Estimativa de compra. Composições oficiais (SINAPI/TCPO) trazem coeficientes próprios para cada serviço.`;}}],
+sim:{nome:'Composição e BDI',itens:[{n:'Bloco cerâmico 14×19×39',u:'un',coef:13,preco:3.10},{n:'Argamassa de assentamento',u:'m³',coef:0.012,preco:520},{n:'Pedreiro (com encargos)',u:'h',coef:0.85,preco:32},{n:'Servente (com encargos)',u:'h',coef:0.85,preco:24}],
 html(){return simWrap(rng('oB','BDI',0,40,0.5,25,'%')+rng('oQ','Quantidade de serviço',1,500,1,100,'m²'),'<div class="tbl-wrap"><table class="ed"><thead><tr><th>Insumo</th><th>Un</th><th>Coef.</th><th>Preço (R$)</th><th>Subtotal</th></tr></thead><tbody id="orBody"></tbody></table></div>')},
 init(){const self=this;$('orBody').innerHTML=this.itens.map((it,i)=>`<tr><td>${it.n}</td><td>${it.u}</td><td><input type="number" step="0.001" id="orC${i}" value="${it.coef}" aria-label="Coeficiente de ${it.n}"></td><td><input type="number" step="0.01" id="orP${i}" value="${it.preco}" aria-label="Preço de ${it.n}"></td><td class="num" id="orS${i}"></td></tr>`).join('');
 $('orBody').querySelectorAll('input').forEach(inp=>inp.oninput=()=>{const i=+inp.id.slice(3);self.itens[i][inp.id[2]==='C'?'coef':'preco']=parseFloat(inp.value.replace(',','.'))||0;self.update()})},
@@ -1823,7 +1962,7 @@ teoria:`<p>A laje é o piso. Ela recebe tudo o que está em cima (pessoas, móve
 <h3>Método das charneiras (bordas iguais)</h3>
 <p>Traçamos linhas a 45° saindo dos cantos. A laje fica dividida em 2 triângulos (lados curtos) e 2 trapézios (lados longos). Cada viga recebe o peso da área que está encostada nela.</p>
 <div class="formula">Viga do lado curto: q = p · lx / 4     Viga do lado longo: q = p · (lx·ly/2 − lx²/4) / ly</div>
-<div class="dica"><b>Na obra</b>Laje treliçada apoia só nas vigas perpendiculares às vigotas. Inverter o sentido das vigotas muda completamente a carga nas vigas.</div>`,
+<div class="dica"><b>Na obra</b>Laje treliçada apoia só nas vigas perpendiculares às vigotas. Inverter o sentido das vigotas muda completamente a carga nas vigas.</div><h3>Momentos e armadura</h3><p>Com as reações nas vigas resolvidas, falta o aço da própria laje. Em lajes apoiadas nos quatro lados, a teoria de placas dá os momentos no centro: M = μ · p · lx². A calculadora <b>Momentos e armadura</b> usa a solução exata de Navier e escolhe bitola e espaçamento por metro.</p>`,
 exemplo:`<h3>Sala de 4 × 5 m com laje maciça de 10 cm</h3><p>Uso residencial, com contrapiso e piso cerâmico.</p>
 <ol class="passos"><li><b>Peso próprio.</b> 25 × 0,10 = <b>2,5 kN/m²</b>.</li>
 <li><b>Revestimento.</b> Contrapiso + piso + reboco do teto ≈ <b>1,0 kN/m²</b>.</li>
@@ -1835,7 +1974,28 @@ exemplo:`<h3>Sala de 4 × 5 m com laje maciça de 10 cm</h3><p>Uso residencial, 
 <div class="dica"><b>Próximo passo</b>Essas cargas entram no módulo RM-01 para achar o momento das vigas.</div>`,
 exemplos:[{"nivel": "facil", "titulo": "Laje quadrada de 3 × 3 m", "html": "<p>Laje maciça de 10 cm, revestimento de 1,0 kN/m² e uso residencial de 1,5 kN/m².</p><ol class=\"passos\"><li><b>Peso próprio.</b> 25 × 0,10 = <b>2,5 kN/m²</b>.</li><li><b>Carga total.</b> p = 2,5 + 1,0 + 1,5 = <b>5,0 kN/m²</b>.</li><li><b>λ = 1,0.</b> Laje armada em cruz.</li><li><b>Charneiras a 45°.</b> Cada viga recebe um triângulo de área 3 × 1,5 / 2 = 2,25 m². q = 5,0 × 2,25 / 3 = <b>3,75 kN/m</b> em todas as vigas.</li></ol>"}, {"nivel": "obra", "titulo": "Laje de corredor de 3 × 7 m", "html": "<p>Mesma laje de 10 cm (p = 5,0 kN/m²), agora num corredor de 3 × 7 m.</p><ol class=\"passos\"><li><b>Relação dos lados.</b> λ = 7 / 3 = <b>2,33</b> &gt; 2 → laje armada em <b>uma direção</b>. A armadura principal vence os 3 m.</li><li><b>Vigas curtas (3 m).</b> Triângulos: q = <b>3,75 kN/m</b>.</li><li><b>Vigas longas (7 m).</b> Trapézios de área (7 + 4) / 2 × 1,5 = 8,25 m². q = 5,0 × 8,25 / 7 = <b>5,89 kN/m</b>.</li><li><b>Consequência.</b> As vigas longas recebem 57% mais carga por metro e têm vão maior. São elas que pedem mais altura.</li></ol><div class=\"dica\"><b>Na obra</b>Em laje armada numa direção, confira se a armadura principal foi colocada no sentido do menor vão. Invertida, a laje fissura e deforma.</div>"}],
 obra:{"intro": "A laje é a peça que mais sofre com escoramento mal feito e desforma apressada. A maior parte das flechas e trincas em lajes nasce na obra, e não no projeto.", "erros": [["Escoramento sem contraventamento", "Escoras soltas ou apoiadas em solo mole cedem durante a concretagem."], ["Desforma antes do tempo", "Retirar as escoras cedo provoca flecha permanente e fissuras."], ["Armadura negativa pisoteada", "O aço de cima desce durante o lançamento e perde a função sobre as vigas."], ["Laje treliçada sem contraflecha", "Vãos maiores sem contraflecha ficam visivelmente \"barrigudos\"."]], "checklist": ["Escoras aprumadas, contraventadas e apoiadas em base firme (tábua ou calço)", "Contraflecha conferida em lajes treliçadas conforme o fabricante ou projeto", "Tubulações elétricas e hidráulicas passadas antes da concretagem, sem cortar nervuras", "Armadura negativa sobre caranguejos, com caminhos de tábua para circulação", "Espessura da capa conferida com gabarito durante o lançamento", "Cura por molhagem nos primeiros 7 dias", "Retirada das escoras só no prazo do projeto e sem retirar todas de uma vez"], "dica": "Deixe algumas escoras de reescoramento no meio dos vãos depois da desforma. Elas protegem a laje enquanto ela ainda recebe as cargas da obra."},
-sim:{html:()=>simWrap(rng('lX','Lado menor lx',2,8,0.1,4,'m')+rng('lY','Lado maior ly',2,12,0.1,5,'m')+rng('lH','Espessura h',8,20,1,10,'cm')+rng('lR','Revestimento',0.5,2.5,0.1,1,'kN/m²','Contrapiso, piso, reboco do teto')+sel('lS','Uso (sobrecarga)',[[1.5,'Residencial: salas e quartos (1,5 kN/m²)',1],[2.5,'Escritórios (2,5 kN/m²)'],[3,'Corredores e escadas de uso comum (3,0 kN/m²)'],[1,'Cobertura só com manutenção (1,0 kN/m²)']],'Valores usuais. Confira a tabela da NBR 6120.')),
+extras:[{nome:'Momentos e armadura',
+html:()=>`<p class="nota">Laje maciça apoiada nos quatro lados. Em cruz, os momentos vêm da solução exata da teoria de placas (série de Navier, ν = 0,2). Com λ &gt; 2, a laje é calculada como uma faixa de 1 m.</p>`+simWrap(`<div class="row">${rng('lmA','Lado 1',2,8,0.05,4,'m')}${rng('lmB','Lado 2',2,8,0.05,5,'m')}</div>`+rng('lmH','Espessura h',7,20,0.5,10,'cm')+rng('lmG','Revestimento e contrapiso',0.5,3,0.1,1,'kN/m²')+rng('lmQ','Sobrecarga de uso',1,5,0.5,1.5,'kN/m²','NBR 6120: 1,5 em residências')+sel('lmF','Concreto',[[20,'C20'],[25,'C25',1],[30,'C30']])),
+update(){const r=calc.lajeMomentos(V_('lmA'),V_('lmB'),V_('lmH'),V_('lmG'),V_('lmQ'),+$('lmF').value),h=V_('lmH');
+  const tx=a=>a.inviavel?'aumente h':a.esc?`φ ${br(a.esc.f,a.esc.f%1?1:0)} c/ ${a.esc.s}`:'—';
+  $('tiles').innerHTML=tiles([['λ = ly / lx',br(r.lam,2)+(r.uma?' (uma direção)':' (em cruz)')],['Mx / My',br(r.Mx,2)+' / '+(r.uma?'—':br(r.My,2))+' kN·m/m'],['Armadura no vão menor',tx(r.ax),1],[r.uma?'Distribuição':'Armadura no vão maior',tx(r.ay),1]])+`<span class="pill ${r.okF?'ok':'alerta'}">Flecha estimada ${br(r.wt,1)} mm ${r.okF?'≤':'>'} L/250 = ${br(r.lim,1)} mm</span>`;
+  const sc=Math.min(300/r.ly,200/r.lx),W=r.ly*sc,H=r.lx*sc,ox=60,oy=40;
+  let s=T_('PLANTA · ARMADURA POSITIVA (ESQUEMA)',ox,18)+`<rect x="${ox}" y="${oy}" width="${W}" height="${H}" style="fill:var(--grid);stroke:var(--ink);stroke-width:3"/>`;
+  if(!r.ax.inviavel){const n=Math.min(16,Math.floor(100*r.ly/r.ax.esc.s));for(let i=1;i<n;i++){const x=ox+W*i/n;s+=Ln(x,oy+6,x,oy+H-6,'steel',1.2)}}
+  if(r.ay&&r.ay.esc){const n=Math.min(12,Math.floor(100*r.lx/r.ay.esc.s));for(let i=1;i<n;i++){const y=oy+H*i/n;s+=Ln(ox+6,y,ox+W-6,y,'amber',1,'opacity=".8"')}}
+  s+=T(ox+W/2,oy+H+18,'ly = '+br(r.ly,2)+' m','muted','text-anchor="middle" font-size="10"')+T(ox-8,oy+H/2,'lx = '+br(r.lx,2),'muted','text-anchor="end" font-size="10"');
+  s+=T(ox+W+20,oy+20,'— '+tx(r.ax)+' (vence lx)','steel','font-size="11" font-weight="600"')+(r.ay&&r.ay.esc?T(ox+W+20,oy+40,'— '+tx(r.ay)+(r.uma?' (distribuição)':' (vence ly)'),'amber-ink','font-size="11" font-weight="600"'):'');
+  s+=usoBarras([['Flecha (com fluência) / L/250',r.wt/r.lim,br(r.wt,1)+' de '+br(r.lim,1)+' mm']],ox+W+20,oy+80,Math.max(140,560-ox-W-20));
+  $('draw').innerHTML=SVG(640,oy+H+40,'Planta da laje com a armadura positiva',s);
+  const ar=(n,a,M)=>a.inviavel?`${n}: Md = ${br(1.4*M,2)} kN·m/m → espessura insuficiente`:`${n}: Md = ${br(a.Md/100,2)} kN·m/m · d = ${br(a.d,1)} cm · x/d = ${br(a.xd,3)} · As = ${br(a.As,2)} cm²/m (mín ${br(a.Asmin,2)}) → ${tx(a)} (${br(a.esc.area,2)} cm²/m)`;
+  $('memorial').textContent=`lx = ${br(r.lx,2)} m · ly = ${br(r.ly,2)} m · λ = ${br(r.lam,3)} · h = ${h} cm
+1) p = 25 × ${br(h/100,3)} + ${br(V_('lmG'),2)} + ${br(V_('lmQ'),2)} = ${br(r.p,2)} kN/m²
+2) ${r.uma?`λ > 2: faixa de 1 m biapoiada → Mx = p·lx²/8 = ${br(r.Mx,3)} kN·m/m`:`Navier (4 bordas apoiadas, ν = 0,2): Mx = ${br(r.Mx/(r.p*r.lx*r.lx),4)} · p·lx² = ${br(r.Mx,3)} · My = ${br(r.My/(r.p*r.lx*r.lx),4)} · p·lx² = ${br(r.My,3)} kN·m/m`}
+3) ${ar('Vão menor',r.ax,r.Mx)}
+4) ${r.uma?`Distribuição: máx(20% de As ; 0,9 cm²/m ; 0,5 ρmín) = ${br(r.ay.Asf,2)} cm²/m → ${tx(r.ay)}`:ar('Vão maior (2ª camada)',r.ay,r.My)}
+5) Flecha: Ecs = ${br(r.Ecs,0)} MPa · carga quase permanente g + 0,3q = ${br(r.ps,2)} kN/m² → imediata ${br(r.wi,2)} mm × 2,32 (fluência) = ${br(r.wt,2)} mm ${r.okF?'≤':'>'} ${br(r.lim,1)} mm
+   Estimativa sem fissuração. Bordas engastadas e lajes contínuas pedem tabelas (Bares/Czerny) e armadura negativa.`;}}],
+sim:{nome:'Cargas nas vigas',html:()=>simWrap(rng('lX','Lado menor lx',2,8,0.1,4,'m')+rng('lY','Lado maior ly',2,12,0.1,5,'m')+rng('lH','Espessura h',8,20,1,10,'cm')+rng('lR','Revestimento',0.5,2.5,0.1,1,'kN/m²','Contrapiso, piso, reboco do teto')+sel('lS','Uso (sobrecarga)',[[1.5,'Residencial: salas e quartos (1,5 kN/m²)',1],[2.5,'Escritórios (2,5 kN/m²)'],[3,'Corredores e escadas de uso comum (3,0 kN/m²)'],[1,'Cobertura só com manutenção (1,0 kN/m²)']],'Valores usuais. Confira a tabela da NBR 6120.')),
 update(){const r=calc.laje(V_('lX'),V_('lY'),V_('lH'),V_('lR'),V_('lS'));
 $('tiles').innerHTML=tiles([['Carga total p',br(r.p)+' kN/m²'],['λ = ly/lx',br(r.lam)],['Vigas lado curto',br(r.qc)+' kN/m',1],['Vigas lado longo',br(r.ql)+' kN/m',1]])+(r.umaDir?'<span class="pill alerta">λ &gt; 2 · laje armada em uma direção</span>':'<span class="pill ok">λ ≤ 2 · laje armada em cruz</span>')+(V_('lH')<r.hs?` <span class="pill alerta">Espessura abaixo de ${r.hs} cm (lx/40)</span>`:'');
 const sc=Math.min(440/r.ly,230/r.lx),W=r.ly*sc,H=r.lx*sc,ox=100+(440-W)/2,oy=50,c=H/2;
@@ -2066,7 +2226,7 @@ teoria:`<p>O pilar leva a carga das vigas até a fundação. Parece que ele só 
 <div class="formula">ν = Nd / (Ac · fcd)     1/r = 0,005 / [h · (ν + 0,5)] ≤ 0,005 / h</div>
 <div class="formula">M2d = Nd · le² / 10 · (1/r)     Md,tot = M1d,mín + M2d</div>
 <div class="formula">As,mín = 0,15·Nd/fyd ≥ 0,4% Ac     As,máx = 4% Ac (8% na emenda)</div>
-<div class="dica"><b>Detalhe que salva obra</b>Estribo segura as barras para elas não flambarem. Espaçamento máximo: o menor entre 20 cm, a menor dimensão do pilar e 12 vezes o diâmetro da barra (CA-50).</div>`,
+<div class="dica"><b>Detalhe que salva obra</b>Estribo segura as barras para elas não flambarem. Espaçamento máximo: o menor entre 20 cm, a menor dimensão do pilar e 12 vezes o diâmetro da barra (CA-50).</div><h3>Pré-dimensionamento pela área de influência</h3><div class="formula">Nk = área de influência × carga por m² × pavimentos     Ac ≈ 1,4 · α · Nk / σideal</div><p>α = 1,3 no pilar intermediário, 1,5 na extremidade e 1,8 no canto, para cobrir os momentos que ainda não foram calculados. Serve para lançar a estrutura; o dimensionamento final vem depois.</p>`,
 exemplo:`<h3>Pilar 20 × 40 com Nk = 800 kN e le = 2,80 m</h3><p>Concreto C25, aço CA-50. Pilar intermediário, sem momentos de primeira ordem nas extremidades.</p>
 <ol class="passos"><li><b>Esforço de cálculo.</b> b = 20 cm, então γn = 1: Nd = 1,4 × 800 = <b>1.120 kN</b>. ν = 1120 / (800 × 1,786) = 0,78.</li>
 <li><b>Direção do lado de 20 cm.</b> λ = 3,46 × 280 / 20 = <b>48,4</b> &gt; 35: tem 2ª ordem. M1d,mín = 1120 × (1,5 + 0,03 × 20) = 2.352 kN·cm.</li>
@@ -2076,7 +2236,26 @@ exemplo:`<h3>Pilar 20 × 40 com Nk = 800 kN e le = 2,80 m</h3><p>Concreto C25, a
 <div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
 exemplos:[{"nivel": "facil", "titulo": "Pilar de 20 × 20 de uma casa de dois pavimentos", "html": "<p>C25, Nk = 300 kN, comprimento de flambagem de 2,80 m nas duas direções.</p><ol class=\"passos\"><li><b>Esforço de cálculo.</b> Nd = 1,4 × 300 = <b>420 kN</b>. ν = 0,59.</li><li><b>Esbeltez.</b> λ = 3,46 × 280 / 20 = <b>48,4</b> nas duas direções. Passa de λ₁ = 35: precisa do efeito de 2ª ordem.</li><li><b>Momentos.</b> Mínimo de 1ª ordem 882 kN·cm + 2ª ordem 757 kN·cm = <b>Md = 1.639 kN·cm</b>.</li><li><b>Armadura.</b> As = 2,02 cm² (mínimo 1,60) → <b>4 φ 10 mm</b>, estribos φ 5 c/ 12 cm.</li></ol>"}, {"nivel": "obra", "titulo": "Pilar de garagem de 25 × 50 num prédio", "html": "<p>C30, Nk = 1.500 kN, le = 3,00 m. Pilar retangular alongado.</p><ol class=\"passos\"><li><b>Esforço.</b> Nd = <b>2.100 kN</b>, ν = 0,78.</li><li><b>Direção fraca (25 cm).</b> λx = <b>41,5</b> &gt; 35 → Md = 4.725 + 2.944 = <b>7.669 kN·cm</b>.</li><li><b>Direção forte (50 cm).</b> λy = 20,8, sem 2ª ordem: Md = 6.300 kN·cm.</li><li><b>Armadura.</b> Governa a direção fraca: As = <b>16,6 cm²</b> → <b>10 φ 16 mm</b> (20,1 cm²), estribos φ 5 c/ 19 cm.</li><li><b>Na obra.</b> Com 10 barras de 16 mm numa seção de 25 cm, a emenda por traspasse no mesmo ponto congestiona a forma. Confira a posição das emendas antes de concretar.</li></ol><div class=\"dica\"><b>Pilar de garagem</b>Pilares de garagem levam batida de carro. Proteja os cantos com cantoneira ou barreira, e nunca corte armadura para ganhar vaga.</div>"}],
 obra:{"intro": "O pilar é a peça que menos aceita improviso: um pilar que falha leva junto tudo o que está em cima. Prumo, armadura e concretagem precisam ser conferidos em cada lance.", "erros": [["Pilar fora de prumo", "Forma mal aprumada cria excentricidade que o projeto não previu."], ["Concreto lançado de grande altura", "Concreto jogado de mais de 2 m segrega e forma bicheira no pé do pilar."], ["Estribos faltando ou abertos", "Estribos que não fecham ou faltam no nó viga-pilar deixam as barras flambarem."], ["Emendas todas na mesma altura", "Traspasse de todas as barras no mesmo ponto, sem seguir o projeto."]], "checklist": ["Locação e prumo da forma conferidos nas duas direções", "Bitola, quantidade e posição das barras longitudinais conforme o projeto", "Estribos no espaçamento correto, fechados e com ganchos a 135°", "Estribos também dentro do nó com as vigas", "Espaçadores garantindo o cobrimento de 3 cm (classe II)", "Janela de inspeção ou lançamento por tubo em pilares altos", "Vibração em camadas, com atenção ao pé do pilar"], "dica": "Antes de concretar, passe a mão no pé do pilar por dentro da forma: sujeira, pregos e serragem acumulados viram uma junta fraca justamente onde o esforço é maior."},
-sim:{html:()=>simWrap(rng('piB','Lado b',14,60,1,20,'cm')+rng('piH','Lado h',14,100,1,40,'cm')+sel('piF','Concreto',[[20,'C20'],[25,'C25',1],[30,'C30'],[35,'C35'],[40,'C40'],[45,'C45'],[50,'C50']])+rng('piN','Carga Nk',50,4000,10,800,'kN','Valor característico')+rng('piL','Comprimento de flambagem le',150,600,10,280,'cm','Pé-direito entre lajes')),
+extras:[{nome:'Pré-dimensionamento',
+html:()=>`<p class="nota">Estimativa da seção para o lançamento da estrutura, pela área de influência. O coeficiente α majora a carga para cobrir os momentos que o pilar vai receber. Depois, confira a seção no simulador de dimensionamento.</p>`+simWrap(rng('pdA','Área de influência por pavimento',2,60,0.5,16,'m²')+rng('pdN','Número de pavimentos acima',1,20,1,4,'')+rng('pdQ','Carga por m² de pavimento',6,15,0.5,10,'kN/m²','Já com peso próprio. Casas: 8 a 10 · prédios: 10 a 12')+sel('pdT','Posição do pilar',[['intermediario','Intermediário (α = 1,3)',1],['extremidade','Extremidade (α = 1,5)'],['canto','Canto (α = 1,8)']])+sel('pdF','Concreto',[[20,'C20'],[25,'C25',1],[30,'C30'],[35,'C35'],[40,'C40']])+sel('pdB','Menor dimensão desejada',[[14,'14 cm (com γn)'],[15,'15 cm (com γn)'],[19,'19 cm'],[20,'20 cm',1],[25,'25 cm'],[30,'30 cm']])),
+update(){const tipo=$('pdT').value,r=calc.preDimPilar(V_('pdA'),V_('pdN'),V_('pdQ'),tipo,+$('pdF').value,+$('pdB').value);
+  $('tiles').innerHTML=tiles([['Nk',br(r.Nk,0)+' kN'],['Nd com α',br(r.Nd,0)+' kN'],['Área necessária',br(r.Ac,0)+' cm²'],['Seção sugerida',r.b+' × '+r.h+' cm',1]])+(r.parede?'<span class="pill alerta">h &gt; 5b: vira pilar-parede. Aumente a menor dimensão.</span>':r.gn>1?`<span class="pill alerta">b &lt; 19 cm: cargas majoradas por γn = ${br(r.gn,2)}</span>`:'');
+  const g=58,ox=50,oy=40;let s=T_('PLANTA · ÁREA DE INFLUÊNCIA',ox,18);
+  const cel={intermediario:[1,1],extremidade:[1,0],canto:[0,0]}[tipo],cx=ox+cel[0]*2*g,cy=oy+cel[1]*2*g;
+  const x0=cx-(cel[0]?g:0),y0=cy-(cel[1]?g:0),w=cel[0]?2*g:g,h=cel[1]?2*g:g;s+=`<rect x="${x0}" y="${y0}" width="${w}" height="${h}" style="fill:var(--amber);opacity:.35"/>`;
+  for(let i=0;i<3;i++){s+=Ln(ox,oy+i*2*g,ox+4*g,oy+i*2*g,'line',1.5)+Ln(ox+i*2*g,oy,ox+i*2*g,oy+4*g,'line',1.5)}
+  for(let i=0;i<3;i++)for(let k=0;k<3;k++){const on=i===cel[0]&&k===cel[1];s+=`<rect x="${ox+i*2*g-7}" y="${oy+k*2*g-7}" width="14" height="14" style="fill:var(--${on?'neg':'ink'})"/>`}
+  s+=T(ox,oy+4*g+20,'meio vão para cada lado do pilar','muted','font-size="10"');
+  const sx=Math.min(150/r.h,120/r.b,5),bx=330,by=50;s+=T_('SEÇÃO SUGERIDA',bx,18)+`<rect x="${bx}" y="${by}" width="${r.b*sx}" height="${r.h*sx}" style="fill:var(--grid);stroke:var(--ink);stroke-width:2"/>`+T(bx+r.b*sx/2,by+r.h*sx+16,r.b+' cm','muted','text-anchor="middle" font-size="10"')+T(bx+r.b*sx+8,by+r.h*sx/2,r.h+' cm','muted','font-size="10"');
+  s+=T(bx+r.b*sx+60,by+20,`${br(r.Acf,0)} cm² ≥ ${br(Math.max(r.Ac,360),0)} cm²`,'ink','font-size="11" font-weight="600"')+T(bx+r.b*sx+60,by+40,`σ ideal = ${br(10*r.sig,1)} MPa`,'muted','font-size="10"');
+  $('draw').innerHTML=SVG(640,Math.max(oy+4*g+34,by+r.h*sx+40),'Área de influência e seção do pilar',s);
+  $('memorial').textContent=`1) Nk = ${br(V_('pdA'),1)} m² × ${br(V_('pdQ'),1)} kN/m² × ${V_('pdN')} pavimentos = ${br(r.Nk,1)} kN
+2) Nd = 1,4 × α × Nk = 1,4 × ${br(r.alfa,1)} × ${br(r.Nk,1)} = ${br(r.Nd,1)} kN${r.gn>1?` · γn = ${br(r.gn,2)} (b < 19 cm)`:''}
+3) Tensão ideal com 1% de armadura: σ = 0,85 fcd + 0,01 × (420 − 0,85 fcd) = ${br(10*r.sig,2)} MPa
+4) Ac = ${r.gn>1?'γn × ':''}Nd / σ = ${br(r.Ac,0)} cm² (mínimo da norma: 360 cm²)
+5) Com b = ${r.b} cm → h = ${r.h} cm (múltiplo de 5) · Ac = ${br(r.Acf,0)} cm²
+   Estimativa de lançamento: o dimensionamento final usa os esforços reais e a esbeltez (aba Dimensionamento).`;}}],
+sim:{nome:'Dimensionamento',html:()=>simWrap(rng('piB','Lado b',14,60,1,20,'cm')+rng('piH','Lado h',14,100,1,40,'cm')+sel('piF','Concreto',[[20,'C20'],[25,'C25',1],[30,'C30'],[35,'C35'],[40,'C40'],[45,'C45'],[50,'C50']])+rng('piN','Carga Nk',50,4000,10,800,'kN','Valor característico')+rng('piL','Comprimento de flambagem le',150,600,10,280,'cm','Pé-direito entre lajes')),
 update(){const b=V_('piB'),h=V_('piH'),fck=V_('piF'),Nk=V_('piN'),le=V_('piL'),r=calc.pilar(b,h,fck,Nk,le);
   if(r.erro){$('tiles').innerHTML=tiles([['Nd',br(r.Nd,0)+' kN'],['λ máx.',br(r.lamMax,1)],['ν',br(r.nu,2)],['As','—',1]])+`<span class="pill alerta">${r.erro}</span>`;$('draw').innerHTML='';$('memorial').textContent=r.erro;return}
   $('tiles').innerHTML=tiles([['Nd',br(r.Nd,0)+' kN'],['λ máx.',br(r.lamMax,1)],['As necessária',br(r.As)+' cm²',1],['Armadura',r.bar?`${r.bar.n} φ ${br(r.bar.f,r.bar.f%1?1:0)} mm`:'—']])+(r.lamMax>35?'<span class="pill alerta">λ &gt; 35 · com efeito de 2ª ordem</span>':'<span class="pill ok">λ ≤ 35 · sem 2ª ordem</span>')+` <span class="pill ok">ρ = ${br(r.rho,2)}%</span>`;
@@ -2109,7 +2288,7 @@ teoria:`<p>O esgoto predial funciona por gravidade. Cada aparelho tem um "peso" 
 <div class="formula">Bacia sanitária 6 (DN 100) · Chuveiro 2 (DN 40) · Lavatório 1 (DN 40) · Pia de cozinha 3 (DN 50)</div>
 <div class="formula">Tanque 3 (DN 40) · Máquina de lavar roupa 3 (DN 50) · Máquina de lavar louça 2 (DN 50)</div>
 <h3>Ventilação e inspeção</h3><p>Todo tubo de queda deve ser prolongado acima da cobertura (ventilação primária), para o ar entrar e o fecho hídrico dos sifões não ser sugado. Caixas de inspeção ficam a no máximo 25 m umas das outras.</p>
-<div class="dica"><b>Cheiro de esgoto no banheiro</b>Quase sempre é falta de ventilação ou caixa sifonada sem fecho hídrico. Ralo seco também deixa o gás passar.</div>`,
+<div class="dica"><b>Cheiro de esgoto no banheiro</b>Quase sempre é falta de ventilação ou caixa sifonada sem fecho hídrico. Ralo seco também deixa o gás passar.</div><h3>Sem rede pública: fossa e sumidouro</h3><div class="formula">Tanque séptico (NBR 7229): V = 1.000 + N · (C · T + K · Lf)</div><div class="formula">Sumidouro (NBR 13969): área de infiltração = contribuição diária / coeficiente de infiltração</div><p>A caixa de gordura da cozinha fica antes de tudo. A calculadora <b>Fossa séptica e sumidouro</b> dimensiona os três.</p>`,
 exemplo:`<h3>Prédio de 8 andares com 4 apartamentos por andar</h3><p>Cada apartamento tem: bacia, chuveiro, lavatório, pia de cozinha, tanque e máquina de lavar roupa. Todos descem pelo mesmo tubo de queda.</p>
 <ol class="passos"><li><b>UHC por apartamento.</b> 6 + 2 + 1 + 3 + 3 + 3 = <b>18 UHC</b>.</li>
 <li><b>Por andar e total.</b> 18 × 4 = 72 UHC por andar. 72 × 8 = <b>576 UHC</b> no tubo de queda.</li>
@@ -2119,7 +2298,29 @@ exemplo:`<h3>Prédio de 8 andares com 4 apartamentos por andar</h3><p>Cada apart
 <div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
 exemplos:[{"nivel": "facil", "titulo": "Casa com um banheiro", "html": "<p>Bacia, chuveiro, lavatório, pia de cozinha e tanque. Coletor com 2% de declividade.</p><ol class=\"passos\"><li><b>UHC.</b> 6 + 2 + 1 + 3 + 3 = <b>15 UHC</b>.</li><li><b>Ramais.</b> Bacia DN 100, pia e tanque DN 50, chuveiro e lavatório DN 40.</li><li><b>Tubo de queda e coletor.</b> <b>DN 100</b>, mínimo por causa da bacia.</li><li><b>Caixa sifonada.</b> Recebe chuveiro e lavatório e sai em DN 50 para o ramal.</li></ol>"}, {"nivel": "obra", "titulo": "Duas casas geminadas com coletor comum", "html": "<p>Cada casa tem 2 banheiros (bacia, chuveiro e lavatório), pia de cozinha, tanque e máquina de lavar. As duas ligam num coletor comum com 1% de declividade.</p><ol class=\"passos\"><li><b>UHC por casa.</b> 2 × (6 + 2 + 1) + 3 + 3 + 3 = <b>27 UHC</b>.</li><li><b>Coletor comum.</b> 54 UHC. DN 100 a 1% admite até 180 UHC → <b>DN 100</b> ✓</li><li><b>Ventilação.</b> Cada casa precisa da sua coluna de ventilação, saindo pelo menos 30 cm acima do telhado.</li><li><b>Cuidado.</b> Máquina de lavar despeja muita espuma. Ligue em ramal próprio ou caixa sifonada de saída maior, nunca direto na caixa do chuveiro.</li></ol><div class=\"dica\"><b>Mau cheiro</b>Cheiro de esgoto em casa nova quase sempre é falta de ventilação ou sifão sem fecho hídrico, e não \"tubo furado\".</div>"}],
 obra:{"intro": "Esgoto mal executado aparece com mau cheiro, entupimento e retorno. Declividade, ventilação e teste antes de fechar são o que mais importa.", "erros": [["Declividade invertida ou zero", "Tubo assentado em nível ou com barriga acumula sólidos e entope."], ["Sem ventilação", "Sem coluna de ventilação, o sifão perde o fecho hídrico e o cheiro volta."], ["Joelho de 90° no coletor horizontal", "Mudanças bruscas de direção no trecho horizontal entopem. Use duas curvas de 45° ou caixa de inspeção."], ["Pluvial ligado ao esgoto", "Sobrecarrega a rede e faz o esgoto voltar em chuva forte."]], "checklist": ["Declividade conferida com nível em todos os trechos horizontais", "Tubulações assentadas em berço de areia, sem pedras pontiagudas", "Caixas de inspeção a no máximo 25 m e em toda mudança de direção do coletor", "Coluna de ventilação saindo pelo menos 30 cm acima da cobertura", "Caixa de gordura na saída da pia da cozinha", "Teste de estanqueidade com água antes de fechar e aterrar", "Pluvial e esgoto em redes separadas"], "dica": "Faça o teste com água: tampe a saída, encha a rede até o ralo mais alto e espere 15 minutos. Se o nível baixar, tem vazamento."},
-sim:{html:()=>simWrap(Object.entries(APARELHOS).map(([k,[u,dn,n]])=>rng('eg_'+k,n+' ('+u+' UHC)',0,3,1,['bacia','chuveiro','lavatorio','pia','tanque','maqroupa'].includes(k)?1:0,'un')).join('')+rng('egU','Unidades por andar',1,8,1,4,'un')+rng('egP','Pavimentos atendidos',1,20,1,8,'')+sel('egD','Declividade do coletor',[[0.5,'0,5% (só DN 150 ou maior)'],[1,'1%',1],[2,'2%'],[4,'4%']])),
+extras:[{nome:'Fossa séptica e sumidouro',
+html:()=>`<p class="nota">Onde não há rede de esgoto: tanque séptico pela NBR 7229, sumidouro pela NBR 13969 e caixa de gordura pela NBR 8160. O coeficiente de infiltração sai do teste de percolação no terreno.</p>`+simWrap(rng('fsN','Pessoas atendidas',1,100,1,5,'')+sel('fsC','Padrão da residência',[[160,'Alto padrão (160 L/pessoa·dia)'],[130,'Padrão médio (130 L/pessoa·dia)',1],[100,'Baixo padrão (100 L/pessoa·dia)']])+rng('fsL','Intervalo entre limpezas',1,5,1,1,'anos')+sel('fsT','Temperatura média do mês mais frio',[['quente','Acima de 20 °C',1],['medio','Entre 10 e 20 °C'],['frio','Até 10 °C']])+rng('fsI','Coeficiente de infiltração do solo',20,150,5,60,'L/m²·dia','Teste de percolação: argila ~20 a 40, silte ~40 a 70, areia acima de 90')+rng('fsD','Diâmetro do sumidouro',1,3,0.1,1.5,'m')+rng('fsK','Cozinhas ligadas à caixa de gordura',1,20,1,1,'')),
+update(){const N=V_('fsN'),C=+$('fsC').value,r=calc.fossa(N,C,1,V_('fsL'),$('fsT').value),sm=calc.sumidouro(r.cd,V_('fsI'),V_('fsD')),cg=calc.caixaGordura(V_('fsK'),N);
+  $('tiles').innerHTML=tiles([['Contribuição',br(r.cd,0)+' L/dia'],['Tanque séptico',br(r.V,0)+' L',1],['Dimensões internas',br(r.L,2)+' × '+br(r.W,2)+' × '+br(r.hu,2)+' m'],['Sumidouro',`Ø ${br(V_('fsD'),1)} × ${br(sm.hAdot,1)} m`,1]])+`<span class="pill ok">Caixa de gordura ${cg.tipo}: ${br(cg.V,0)} L</span>`;
+  const sc=Math.min(60,240/(r.L+V_('fsD')+2)),ox=40,chao=60,hu=r.hu*sc,L=r.L*sc;let s=T_('CORTE ESQUEMÁTICO',ox,18)+Ln(20,chao,620,chao,'soil',2);
+  s+=`<rect x="${ox}" y="${chao-6}" width="40" height="30" style="fill:var(--water-fill);stroke:var(--ink)"/>`+T(ox+20,chao+40,'CG','muted','text-anchor="middle" font-size="10"');
+  const fx=ox+70;s+=`<rect x="${fx}" y="${chao-4}" width="${L}" height="${hu+10}" style="fill:none;stroke:var(--ink);stroke-width:2"/><rect x="${fx+2}" y="${chao+6}" width="${L-4}" height="${hu-2}" style="fill:var(--water-fill)"/><rect x="${fx+2}" y="${chao+hu-0.25*hu}" width="${L-4}" height="${0.25*hu}" style="fill:var(--soil-fill)"/>`+T(fx+L/2,chao+hu+26,'tanque séptico · '+br(r.V,0)+' L','ink','text-anchor="middle" font-size="10" font-weight="600"')+T(fx+L/2,chao+hu-0.12*hu+4,'lodo','soil','text-anchor="middle" font-size="9"');
+  const D=V_('fsD')*sc,sx=fx+L+60,hh=Math.min(230,sm.hAdot*sc);s+=Ln(ox+40,chao+8,fx,chao+8,'steel',2)+Ln(fx+L,chao+10,sx,chao+10,'steel',2);
+  s+=`<rect x="${sx}" y="${chao}" width="${D}" height="${hh}" style="fill:var(--soil-fill);stroke:var(--ink);stroke-width:2;stroke-dasharray:6 4"/>`;for(let i=0;i<5;i++)s+=Ln(sx+D+4,chao+20+i*hh/5,sx+D+22,chao+28+i*hh/5,'water',1.5);
+  s+=T(sx+D/2,chao+hh+18,'sumidouro · h = '+br(sm.hAdot,1)+' m','ink','text-anchor="middle" font-size="10" font-weight="600"');
+  $('draw').innerHTML=SVG(640,Math.max(chao+hu+40,chao+hh+32),'Caixa de gordura, tanque séptico e sumidouro',s);
+  $('memorial').textContent=`Tanque séptico (NBR 7229)
+1) Contribuição: ${N} pessoas × ${C} L = ${br(r.cd,0)} L/dia → período de detenção T = ${br(r.T,2)} dia
+2) Taxa de acumulação de lodo K = ${r.K} dias (limpeza a cada ${V_('fsL')} ano${V_('fsL')>1?'s':''}) · lodo fresco Lf = 1 L/pessoa·dia
+3) V = 1.000 + N × (C·T + K·Lf) = 1.000 + ${N} × (${C} × ${br(r.T,2)} + ${r.K} × 1) = ${br(r.V,0)} L
+4) Altura útil ${br(r.hu,2)} m → área ${br(r.Ab,2)} m² → ${br(r.L,2)} × ${br(r.W,2)} m (comprimento ≈ 2 × largura, largura ≥ 0,80 m)
+Sumidouro (NBR 13969)
+5) Área de infiltração = ${br(r.cd,0)} / ${br(V_('fsI'),0)} = ${br(sm.A,2)} m² · fundo π D²/4 = ${br(sm.fundo,2)} m²
+6) Parede π D h ≥ ${br(sm.A-sm.fundo,2)} m² → h = ${br(sm.h,2)} m → adotado ${br(sm.hAdot,1)} m útil abaixo da entrada
+Caixa de gordura (NBR 8160)
+7) ${V_('fsK')} cozinha${V_('fsK')>1?'s':''} → ${cg.tipo}${cg.D?`, Ø ${cg.D} cm`:''} · ${cg.tipo.includes('especial')?`V = 2N + 20 = ${br(cg.V,0)} L`:`volume ${cg.V} L`}
+   Fundo do sumidouro a pelo menos 1,50 m acima do lençol freático e distâncias mínimas de poços e divisas, conforme a norma.`;}}],
+sim:{nome:'Unidades Hunter',html:()=>simWrap(Object.entries(APARELHOS).map(([k,[u,dn,n]])=>rng('eg_'+k,n+' ('+u+' UHC)',0,3,1,['bacia','chuveiro','lavatorio','pia','tanque','maqroupa'].includes(k)?1:0,'un')).join('')+rng('egU','Unidades por andar',1,8,1,4,'un')+rng('egP','Pavimentos atendidos',1,20,1,8,'')+sel('egD','Declividade do coletor',[[0.5,'0,5% (só DN 150 ou maior)'],[1,'1%',1],[2,'2%'],[4,'4%']])),
 update(){const ap={};Object.keys(APARELHOS).forEach(k=>ap[k]=V_('eg_'+k));const U=V_('egU'),P=V_('egP'),d=V_('egD'),r=calc.esgoto(ap,U,P,d);
   $('tiles').innerHTML=tiles([['UHC por unidade',r.uUn],['UHC no tubo de queda',r.uTot],['Tubo de queda',r.tq?'DN '+r.tq:'acima de DN 300',1],['Coletor predial',r.col?'DN '+r.col:'acima de DN 400',1]])+(r.uUn===0?'<span class="pill alerta">Nenhum aparelho escolhido</span>':'')+(!r.bacia&&r.uUn?' <span class="pill ok">Sem bacia: tubo de queda pode ser menor que DN 100</span>':'');
   const fl=Math.min(P,10),fh=24,top=30,x=150;let s=T_('ESQUEMA VERTICAL',30,18);
