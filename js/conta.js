@@ -49,7 +49,7 @@ const Conta={
       catch(e){if(!e.rede){this.s=null;this.gravar('af-sessao',null);this.estado='expirada';this.topo()}throw e}})();this._renovando=pr;pr.then(()=>{},()=>{}).then(()=>{if(this._renovando===pr)this._renovando=null})}
     return this._renovando;
   },
-  retorno(){return location.origin+location.pathname},
+  retorno(){return location.origin+location.pathname.replace(/index\.html$/,'')},
   // ---------- ações de conta
   async entrar(email,senha){const j=await this.req('/auth/v1/token?grant_type=password',{method:'POST',body:{email,password:senha},auth:false});this.definir(j);await this.aoEntrar()},
   async criar(nome,email,senha){
