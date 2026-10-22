@@ -908,7 +908,7 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 ];
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.7.2';
+const VERSAO_APP='1.7.3';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -1318,7 +1318,7 @@ const Cert={
   // ---------- aba Certificado
   requisitos(m){return `<div class="cols"><div class="conceito"><h4>1 · Estude</h4><p>Teoria, os 3 exemplos, o simulador e a aba Na obra. Responda as 15 questões do quiz.</p></div>
     <div class="conceito"><h4>2 · Faça a prova</h4><p>${this.PROVA_Q} questões sorteadas, 30 minutos e nota mínima ${this.MINIMO}. São 2 tentativas a cada 24 horas.</p></div>
-    <div class="conceito"><h4>3 · Receba o certificado</h4><p>Curso livre de ${this.CARGA} horas, com código e QR code para a faculdade conferir. Avulso por R$ ${br(this.preco)}, ou em pacotes a partir de R$ 3,00 por certificado.</p></div></div>`},
+    <div class="conceito"><h4>3 · Receba o certificado</h4><p>Curso livre de ${this.CARGA} horas, com código e QR code para qualquer pessoa conferir a autenticidade. Avulso por R$ ${br(this.preco)}, ou em pacotes a partir de R$ 3,00 por certificado.</p></div></div>`},
   async render(m,p){
     const cab=`<p>A prova e o estudo são grátis. Você paga só se quiser o certificado, depois de aprovado.</p>${this.requisitos(m)}`;
     if(!Conta.ativo){p.innerHTML=cab+`<p class="nota">A certificação funciona no app publicado: <b>fosterfcs.github.io/academia-foster</b>. Nesta prévia ela fica desativada.</p>`;return}
