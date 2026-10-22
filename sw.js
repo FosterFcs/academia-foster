@@ -1,6 +1,6 @@
 // Service worker da Academia Foster de Engenharia.
 // IMPORTANTE: a cada publicação, aumente VERSAO. É isso que faz os aparelhos baixarem a versão nova.
-const VERSAO='af-1.1.0';
+const VERSAO='af-1.2.0';
 importScripts('js/catalogo.js');
 const ARQUIVOS=['./','index.html','css/app.css','js/calc.js','js/core.js','js/conta.js','js/catalogo.js','js/sig.js','manifest.webmanifest',
   'icons/icone-192.png','icons/icone-512.png','icons/icone-mascara-512.png','icons/apple-touch-icon.png','icons/favicon-32.png']

@@ -32,7 +32,7 @@ with sync_playwright() as p:
     pg.wait_for_function("navigator.serviceWorker&&navigator.serviceWorker.controller",timeout=15000)
     ks=pg.evaluate(CACHE);ok(ks==[V],'cache da versão: '+str(ks))
     n=pg.evaluate("caches.open('"+V+"').then(c=>c.keys()).then(k=>k.map(r=>new URL(r.url).pathname))")
-    ok(sum('/js/modulos/' in x for x in n)==16,'16 disciplinas salvas no aparelho')
+    nm=len(re.findall(r"\{id:'",open(os.path.join(site,'js','catalogo.js'),encoding='utf-8').read()));ok(sum('/js/modulos/' in x for x in n)==nm,f'{nm} disciplinas salvas no aparelho')
     ok(any(x.endswith('/js/sig.js') for x in n) and any(x.endswith('/index.html') for x in n),'núcleo salvo')
     ok(pg.is_hidden('#aviso'),'sem aviso na primeira visita')
     ok(pg.url==URL,'não recarregou sozinho na primeira visita')

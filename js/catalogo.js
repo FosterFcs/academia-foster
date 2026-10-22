@@ -1,7 +1,7 @@
 // Catálogo das disciplinas: carregado no início e pelo service worker.
 // Para adicionar uma disciplina: crie js/modulos/<id>.js, inclua a entrada aqui e em AREAS.
-const AREAS=[['Estruturas',['rm','is','ca','lj','pi']],['Geotecnia',['gt','et','ma']],['Hidráulica e Instalações',['hd','ap','eg','el']],['Construção e Gestão',['mc','or','pl']],['Topografia',['tp']]];
-const PROX=['Estruturas de Aço','Estruturas de Madeira','Cargas (NBR 6120)','Compactação de Solos','Hidrologia e Drenagem','Reservatórios','Estradas','Pavimentação','Desempenho (NBR 15575)','Segurança do Trabalho','Patologia das Construções','Cálculo e Física Aplicados'];
+const AREAS=[['Estruturas',['rm','is','ca','lj','pi','ac','md']],['Geotecnia',['gt','et','ma']],['Hidráulica e Instalações',['hd','ap','eg','rs','el']],['Construção e Gestão',['mc','or','pl']],['Topografia',['tp']],['Transportes',['pv']]];
+const PROX=['Cargas (NBR 6120)','Compactação de Solos','Hidrologia e Drenagem','Estradas','Desempenho (NBR 15575)','Segurança do Trabalho','Patologia das Construções','Cálculo e Física Aplicados'];
 const CATALOGO=[
 {id:'rm',cod:'RM-01',nome:'Resistência dos Materiais',eyebrow:'RM-01 · Vigas biapoiadas',titulo:'Esforço cortante e momento fletor sem mistério',
 quiz:[
@@ -114,5 +114,29 @@ quiz:[
 {p:'Qual a regra de coordenação entre corrente, disjuntor e fio?',o:['In ≤ Ib ≤ Iz','Ib ≤ In ≤ Iz','Iz ≤ In ≤ Ib','In = Iz'],c:1,e:'A corrente do circuito não pode passar do disjuntor, e o disjuntor não pode passar da capacidade do fio.'},
 {p:'Quantas TUG, no mínimo, numa cozinha com 10 m de perímetro?',o:['1','2','3','4'],c:2,e:'Cozinha: 1 tomada a cada 3,5 m de perímetro ou fração. 10 / 3,5 = 2,86 → 3 tomadas.'},
 {p:'Qual a corrente de um chuveiro de 7.500 W em 220 V?',o:['17 A','27 A','34 A','59 A'],c:2,e:'Ib = 7500 / 220 ≈ 34,1 A.'},
-{p:'Para que serve o DR?',o:['Proteger o fio contra sobrecarga','Proteger as pessoas contra choque elétrico','Reduzir a conta de luz','Substituir o aterramento'],c:1,e:'O DR detecta fuga de corrente para a terra e desliga o circuito, protegendo as pessoas.'}]}
+{p:'Para que serve o DR?',o:['Proteger o fio contra sobrecarga','Proteger as pessoas contra choque elétrico','Reduzir a conta de luz','Substituir o aterramento'],c:1,e:'O DR detecta fuga de corrente para a terra e desliga o circuito, protegendo as pessoas.'}]},
+{id:'ac',cod:'AC-17',nome:'Estruturas de Aço',eyebrow:'AC-17 · Vigas de perfil I · NBR 8800',titulo:'A viga que tomba antes de romper',
+quiz:[{p:'Qual verificação costuma governar vigas de aço longas e sem travamento lateral?',o:['Esmagamento da alma','Flambagem lateral com torção (FLT)','Tração na mesa inferior','Corrosão'],c:1,e:'Sem travamento, a mesa comprimida tomba lateralmente e a viga torce, bem antes de plastificar.'},
+{p:'O que é o módulo plástico Zx?',o:['O peso por metro do perfil','A propriedade que dá o momento de plastificação total (Mpl = Zx · fy)','A inércia em torno do eixo fraco','O raio de giração'],c:1,e:'Mpl = Zx · fy é o maior momento que a seção suporta quando toda ela escoa.'},
+{p:'Qual o coeficiente de ponderação da resistência do aço na flexão (γa1)?',o:['1,00','1,10','1,40','1,50'],c:1,e:'A NBR 8800 usa γa1 = 1,10 para escoamento e instabilidade.'},
+{p:'Como reduzir o risco de FLT sem trocar o perfil?',o:['Pintar a viga','Travar a mesa comprimida em mais pontos (reduzir Lb)','Aumentar o vão','Usar aço de menor resistência'],c:1,e:'Diminuir a distância entre travamentos aumenta muito o momento resistente.'},
+{p:'Qual o limite usual de flecha para vigas de piso na NBR 8800?',o:['L/100','L/200','L/350','L/1000'],c:2,e:'O Anexo C da NBR 8800 indica L/350 para vigas de piso.'}]},
+{id:'md',cod:'MD-18',nome:'Estruturas de Madeira',eyebrow:'MD-18 · Vigas, caibros e terças · NBR 7190',titulo:'Madeira que não enverga',
+quiz:[{p:'O que o kmod considera?',o:['Só a espécie da madeira','Duração da carga, umidade do ambiente e qualidade da peça','O preço da madeira','A cor da madeira'],c:1,e:'kmod = k1 · k2 · k3: duração da carga, classe de umidade e categoria da madeira.'},
+{p:'Qual o γ da resistência à compressão da madeira na NBR 7190?',o:['1,0','1,15','1,4','1,8'],c:2,e:'γwc = 1,4 para compressão. Para cisalhamento, γwv = 1,8.'},
+{p:'Qual o módulo resistente W de uma seção 6 × 12 cm?',o:['72 cm³','144 cm³','864 cm³','12 cm³'],c:1,e:'W = b · h² / 6 = 6 × 144 / 6 = 144 cm³.'},
+{p:'Por que a madeira em ambiente úmido tem resistência reduzida?',o:['Porque fica mais pesada','Porque a umidade reduz resistência e rigidez das fibras','Porque muda de cor','Não há redução'],c:1,e:'A umidade alta reduz a resistência e o módulo de elasticidade; por isso k2 = 0,8 nas classes 3 e 4.'},
+{p:'Qual o limite de flecha usado para vigas de madeira em vãos comuns?',o:['L/50','L/100','L/200','L/500'],c:2,e:'A NBR 7190 limita a flecha a L/200 nos vãos.'}]},
+{id:'rs',cod:'RS-19',nome:'Reservatórios',eyebrow:'RS-19 · Caixa d\u2019água e recalque · NBR 5626',titulo:'Quantos litros de caixa d\u2019água',
+quiz:[{p:'Qual o consumo per capita usual em apartamentos?',o:['50 L/dia','200 L/dia','1.000 L/dia','20 L/dia'],c:1,e:'Para residências e apartamentos, usa-se de 150 a 200 L por pessoa por dia.'},
+{p:'Com bombeamento, como se costuma dividir a reserva?',o:['100% no superior','60% no inferior e 40% no superior','50% e 50%','Tudo no inferior'],c:1,e:'A divisão usual é 3/5 no inferior e 2/5 no superior, mais a reserva de incêndio no superior.'},
+{p:'Quantos dias de reserva a NBR 5626 recomenda, no mínimo?',o:['1 dia (24 h de consumo)','7 dias','1 hora','30 dias'],c:0,e:'A reserva mínima é de 24 horas de consumo. Na prática, usa-se de 1 a 3 dias.'},
+{p:'Para que serve a fórmula de Forchheimer?',o:['Calcular o volume da caixa','Calcular o diâmetro do tubo de recalque','Calcular o consumo','Calcular a pressão da rede'],c:1,e:'D = 1,3 · √Q · X^¼ dá o diâmetro econômico do recalque.'},
+{p:'Onde fica a reserva técnica de incêndio?',o:['No reservatório inferior','No reservatório superior, sem uso no dia a dia','Na rua','No aquecedor'],c:1,e:'A RTI fica no superior e não pode ser consumida no uso normal.'}]},
+{id:'pv',cod:'PV-20',nome:'Pavimentação',eyebrow:'PV-20 · Pavimento flexível · Método do DNIT',titulo:'Quantos centímetros de asfalto e base',
+quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo comparada a uma brita padrão','A umidade do ar','O volume de tráfego'],c:1,e:'O Índice de Suporte Califórnia compara a resistência do material à de uma brita padrão.'},
+{p:'O que é o número N?',o:['O número de faixas','O número de passagens do eixo padrão de 8,2 t na vida útil','A espessura do asfalto','O número de caminhões por dia'],c:1,e:'N é o número equivalente de repetições do eixo padrão durante o período de projeto.'},
+{p:'Se o CBR do subleito diminui, o que acontece com a espessura total do pavimento?',o:['Diminui','Aumenta','Não muda','Some'],c:1,e:'H = 77,67 · N^0,0482 · CBR^−0,598: CBR menor exige pavimento mais espesso.'},
+{p:'Qual o revestimento indicado pelo DNIT para N entre 10⁶ e 5×10⁶?',o:['Tratamento superficial','Revestimento betuminoso com 5 cm','Concreto asfáltico com 12,5 cm','Paralelepípedo'],c:1,e:'Para essa faixa de N, a tabela do DNIT indica revestimento betuminoso de 5 cm.'},
+{p:'Qual o CBR mínimo de uma sub-base granular?',o:['2%','10%','20%','80%'],c:2,e:'A sub-base precisa de CBR ≥ 20%. A base, de CBR ≥ 80% (ou 60% para tráfego leve).'}]}
 ];

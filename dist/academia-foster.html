@@ -218,6 +218,10 @@ const TUBO_QUEDA=[[40,4,8,2],[50,10,24,6],[75,30,70,12],[100,240,500,84],[150,96
 const COLETOR={100:[null,216,250,300],150:[700,840,1000,1200],200:[1400,1600,1920,2300],250:[2500,2900,3500,4200],300:[3900,4600,5600,6700],400:[7000,8300,10000,12000]};
 const RAMAL_ESG=[[40,3],[50,6],[75,20],[100,160]];
 const SECOES=[1.5,2.5,4,6,10,16,25,35],CAPB1={1.5:17.5,2.5:24,4:32,6:41,10:57,16:76,25:101,35:125},FAGRUP=[1,1,0.8,0.7,0.65,0.6,0.57,0.54,0.52,0.5],DISJ=[6,10,13,16,20,25,32,40,50,63,70,80,100];
+// Onda 3: perfis W (dimensões nominais d, bf, tw, tf em mm), madeiras NBR 7190 (1997), caixas e diâmetros comerciais
+const PERFIS_W={'W 150 x 13,0':[148,100,4.3,4.9],'W 200 x 15,0':[200,100,4.3,5.2],'W 200 x 22,5':[206,102,6.2,8.0],'W 250 x 25,3':[257,102,6.1,8.4],'W 310 x 32,7':[313,102,6.6,10.8],'W 360 x 39,0':[353,128,6.5,10.7],'W 410 x 46,1':[403,140,7.0,11.2],'W 460 x 52,0':[450,152,7.6,10.8]};
+const MADEIRAS={'Conífera C20':{fc:20,fv:4,E:3500,rho:400},'Conífera C25':{fc:25,fv:5,E:8500,rho:450},'Conífera C30':{fc:30,fv:6,E:14500,rho:500},'Dicotiledônea C20':{fc:20,fv:4,E:9500,rho:650},'Dicotiledônea C30':{fc:30,fv:5,E:14500,rho:800},'Dicotiledônea C40':{fc:40,fv:6,E:19500,rho:950},'Dicotiledônea C60':{fc:60,fv:8,E:24500,rho:1000}};
+const CAIXAS=[310,500,1000,1500,2000,3000,5000,10000,15000,20000],DN_RECALQUE=[20,25,32,40,50,60,75,85,110];
 const calc={
   viga(L,q,P,a,N=400){
     const RB=q*L/2+P*a/L,RA=q*L+P-RB,xs=[],V=[],M=[];
@@ -350,6 +354,50 @@ const calc={
       if(okI&&okV)return{Ib,fa,S,Iz,In,dv:dv(S),crit,ok:true};crit=!okI?'capacidade de corrente':'queda de tensão'}
     return{Ib,fa,In,ok:false,erro:'Nenhuma seção até 35 mm² atende. Divida o circuito ou reduza o comprimento.'};
   },
+  perfilW(nome){
+    const[d0,bf0,tw0,tf0]=PERFIS_W[nome],d=d0/10,bf=bf0/10,tw=tw0/10,tf=tf0/10,h=d-2*tf;
+    const A=2*bf*tf+h*tw,Ix=(bf*d**3-(bf-tw)*h**3)/12,Iy=2*tf*bf**3/12+h*tw**3/12;
+    return{d,bf,tw,tf,h,A,Ix,Wx:2*Ix/d,Zx:bf*tf*(d-tf)+tw*h*h/4,Iy,ry:Math.sqrt(Iy/A),J:(2*bf*tf**3+(d-tf)*tw**3)/3,Cw:Iy*(d-tf)**2/4,massa:A*0.785};
+  },
+  vigaAco(nome,fyMPa,L,g,q,Lb,Cb){
+    const P=calc.perfilW(nome),E=20000,fy=fyMPa/10,sr=0.3*fy,ga=1.10,Lc=L*100,Lbc=Lb*100,raiz=k=>Math.sqrt(k*E/fy);
+    const pp=P.massa*0.00981,qd=1.4*(g+pp)+1.5*q,Msd=qd*L*L/8*100,Vsd=qd*L/2;
+    const Mpl=P.Zx*fy,Mr=(fy-sr)*P.Wx,interp=(Mr_,l,lp,lr)=>Mpl-(Mpl-Mr_)*(l-lp)/(lr-lp);
+    const FLA={l:P.h/P.tw,lp:3.76*raiz(1),lr:5.70*raiz(1)};FLA.esbelta=FLA.l>FLA.lr;FLA.M=FLA.l<=FLA.lp?Mpl:Math.max(0,interp(fy*P.Wx,FLA.l,FLA.lp,FLA.lr));
+    const FLM={l:P.bf/(2*P.tf),lp:0.38*raiz(1),lr:0.83*Math.sqrt(E/(fy-sr))};FLM.M=FLM.l<=FLM.lp?Mpl:FLM.l<=FLM.lr?interp(Mr,FLM.l,FLM.lp,FLM.lr):0.69*E*P.Wx/FLM.l**2;
+    const b1=(fy-sr)*P.Wx/(E*P.J),Mcr=Cb*Math.PI**2*E*P.Iy/Lbc**2*Math.sqrt(P.Cw/P.Iy*(1+0.039*P.J*Lbc**2/P.Cw));
+    const FLT={l:Lbc/P.ry,lp:1.76*raiz(1),lr:1.38*Math.sqrt(P.Iy*P.J)/(P.ry*P.J*b1)*Math.sqrt(1+Math.sqrt(1+27*P.Cw*b1*b1/P.Iy)),Mcr};
+    FLT.M=FLT.l<=FLT.lp?Mpl:FLT.l<=FLT.lr?Math.min(Mpl,Cb*interp(Mr,FLT.l,FLT.lp,FLT.lr)):Math.min(Mpl,Mcr);
+    const MRk=Math.min(FLA.M,FLM.M,FLT.M),MRd=Math.min(MRk,1.5*P.Wx*fy)/ga,gov=MRk>=Mpl-1e-9?'plastificação total':MRk===FLT.M?'FLT':MRk===FLM.M?'FLM':'FLA';
+    const lv=P.h/P.tw,lpv=1.10*raiz(5),lrv=1.37*raiz(5),Vpl=0.6*P.d*P.tw*fy,VRd=(lv<=lpv?Vpl:lv<=lrv?lpv/lv*Vpl:1.24*(lpv/lv)**2*Vpl)/ga;
+    const qs=(g+pp+q)/100,flecha=5*qs*Lc**4/(384*E*P.Ix),lim=Lc/350;
+    return{P,pp,qd,Msd,Vsd,Mpl,Mr,FLA,FLM,FLT,MRk,MRd,gov,VRd,flecha,lim,okM:Msd<=MRd,okV:Vsd<=VRd,okF:flecha<=lim};
+  },
+  vigaMadeira(cls,b,h,L,s,g,q,k1,k2,k3){
+    const M=MADEIRAS[cls],kmod=k1*k2*k3,fcd=kmod*M.fc/1.4,fvd=kmod*M.fv/1.8,Eef=kmod*M.E,pp=M.rho*0.00981*b*h/1e4;
+    const gl=g*s+pp,ql=q*s,Fd=1.4*(gl+ql),Md=Fd*L*L/8,Vd=Fd*L/2,W=b*h*h/6,I=b*h**3/12;
+    const sig=Md*1000/W,tau=1.5*Vd*1000/(b*h*100),qs=gl+0.2*ql,flecha=5*qs*(L*1000)**4/(384*Eef*I*1e4),lim=L*1000/200;
+    return{kmod,fcd,fvd,Eef,pp,gl,ql,Fd,Md,Vd,W,I,sig,tau,qs,flecha,lim,okM:sig<=fcd,okV:tau<=fvd,okF:flecha<=lim};
+  },
+  reservatorio(pessoas,consumo,dias,rti,recalque,horas,Hutil){
+    const diario=pessoas*consumo,reserva=diario*dias,inf=recalque?0.6*reserva:0,sup=(recalque?0.4*reserva:reserva)+rti,total=reserva+rti;
+    const esc=v=>{const c=CAIXAS.find(x=>x>=v-1e-9);if(c)return{n:1,cap:c};const m=CAIXAS[CAIXAS.length-1];return{n:Math.ceil(v/m-1e-9),cap:m}};
+    const Qlh=diario/horas,Q=Qlh/3.6e6,X=horas/24,Dm=1.3*Math.sqrt(Q)*X**0.25,Dmm=Dm*1000,ir=DN_RECALQUE.findIndex(x=>x>=Dmm-1e-9);
+    const rec=ir>=0?DN_RECALQUE[ir]:null,suc=ir>=0?(DN_RECALQUE[ir+1]||DN_RECALQUE[ir]):null,area=inf/1000/Hutil;
+    return{diario,reserva,inf,sup,total,caixaSup:esc(sup),caixaInf:recalque?esc(inf):null,Qlh,Dmm,rec,suc,area,lado:Math.sqrt(area),tempo:recalque&&Qlh?inf/Qlh:0};
+  },
+  numeroN(vdm,anos,taxa,fv,fr){let s=0;for(let i=0;i<anos;i++)s+=vdm*(1+taxa/100)**i;return 365*s*fv*fr},
+  espessuraH(N,cbr){return 77.67*N**0.0482*cbr**-0.598},
+  pavimento(N,cbrSub,cbrRef){
+    const H=cbr=>calc.espessuraH(N,cbr),up=v=>Math.ceil(v-1e-9);
+    let R,tipo;if(N<=1e6){R=0;tipo='Tratamento superficial betuminoso'}else if(N<=5e6){R=5;tipo='Revestimento betuminoso com 5,0 cm'}else if(N<=1e7){R=7.5;tipo='Concreto betuminoso com 7,5 cm'}else if(N<=5e7){R=10;tipo='Concreto betuminoso com 10,0 cm'}else{R=12.5;tipo='Concreto betuminoso com 12,5 cm'}
+    const KR=2,K=1,Hm=H(cbrSub),H20=H(20),temRef=cbrRef!=null&&cbrRef>cbrSub&&cbrRef<20,Hn=temRef?H(cbrRef):null;
+    const B=Math.max(15,up((H20-R*KR)/K));
+    let h20,hn=0;
+    if(temRef){h20=Math.max(0,up((Hn-R*KR-B*K)/K));hn=Math.max(0,up((Hm-R*KR-B*K-h20*K)/K))}
+    else h20=Math.max(0,up((Hm-R*KR-B*K)/K));
+    return{R,tipo,KR,Hm,H20,Hn,B,h20,hn,total:R+B+h20+hn,temRef};
+  },
   orcamento(itens,bdi,qtd){
     const linhas=itens.map(i=>({...i,sub:i.coef*i.preco})),cu=linhas.reduce((s,l)=>s+l.sub,0),pu=cu*(1+bdi/100);
     return{linhas,cu,pu,total:pu*qtd};
@@ -359,8 +407,8 @@ const calc={
 
 // Catálogo das disciplinas: carregado no início e pelo service worker.
 // Para adicionar uma disciplina: crie js/modulos/<id>.js, inclua a entrada aqui e em AREAS.
-const AREAS=[['Estruturas',['rm','is','ca','lj','pi']],['Geotecnia',['gt','et','ma']],['Hidráulica e Instalações',['hd','ap','eg','el']],['Construção e Gestão',['mc','or','pl']],['Topografia',['tp']]];
-const PROX=['Estruturas de Aço','Estruturas de Madeira','Cargas (NBR 6120)','Compactação de Solos','Hidrologia e Drenagem','Reservatórios','Estradas','Pavimentação','Desempenho (NBR 15575)','Segurança do Trabalho','Patologia das Construções','Cálculo e Física Aplicados'];
+const AREAS=[['Estruturas',['rm','is','ca','lj','pi','ac','md']],['Geotecnia',['gt','et','ma']],['Hidráulica e Instalações',['hd','ap','eg','rs','el']],['Construção e Gestão',['mc','or','pl']],['Topografia',['tp']],['Transportes',['pv']]];
+const PROX=['Cargas (NBR 6120)','Compactação de Solos','Hidrologia e Drenagem','Estradas','Desempenho (NBR 15575)','Segurança do Trabalho','Patologia das Construções','Cálculo e Física Aplicados'];
 const CATALOGO=[
 {id:'rm',cod:'RM-01',nome:'Resistência dos Materiais',eyebrow:'RM-01 · Vigas biapoiadas',titulo:'Esforço cortante e momento fletor sem mistério',
 quiz:[
@@ -473,11 +521,35 @@ quiz:[
 {p:'Qual a regra de coordenação entre corrente, disjuntor e fio?',o:['In ≤ Ib ≤ Iz','Ib ≤ In ≤ Iz','Iz ≤ In ≤ Ib','In = Iz'],c:1,e:'A corrente do circuito não pode passar do disjuntor, e o disjuntor não pode passar da capacidade do fio.'},
 {p:'Quantas TUG, no mínimo, numa cozinha com 10 m de perímetro?',o:['1','2','3','4'],c:2,e:'Cozinha: 1 tomada a cada 3,5 m de perímetro ou fração. 10 / 3,5 = 2,86 → 3 tomadas.'},
 {p:'Qual a corrente de um chuveiro de 7.500 W em 220 V?',o:['17 A','27 A','34 A','59 A'],c:2,e:'Ib = 7500 / 220 ≈ 34,1 A.'},
-{p:'Para que serve o DR?',o:['Proteger o fio contra sobrecarga','Proteger as pessoas contra choque elétrico','Reduzir a conta de luz','Substituir o aterramento'],c:1,e:'O DR detecta fuga de corrente para a terra e desliga o circuito, protegendo as pessoas.'}]}
+{p:'Para que serve o DR?',o:['Proteger o fio contra sobrecarga','Proteger as pessoas contra choque elétrico','Reduzir a conta de luz','Substituir o aterramento'],c:1,e:'O DR detecta fuga de corrente para a terra e desliga o circuito, protegendo as pessoas.'}]},
+{id:'ac',cod:'AC-17',nome:'Estruturas de Aço',eyebrow:'AC-17 · Vigas de perfil I · NBR 8800',titulo:'A viga que tomba antes de romper',
+quiz:[{p:'Qual verificação costuma governar vigas de aço longas e sem travamento lateral?',o:['Esmagamento da alma','Flambagem lateral com torção (FLT)','Tração na mesa inferior','Corrosão'],c:1,e:'Sem travamento, a mesa comprimida tomba lateralmente e a viga torce, bem antes de plastificar.'},
+{p:'O que é o módulo plástico Zx?',o:['O peso por metro do perfil','A propriedade que dá o momento de plastificação total (Mpl = Zx · fy)','A inércia em torno do eixo fraco','O raio de giração'],c:1,e:'Mpl = Zx · fy é o maior momento que a seção suporta quando toda ela escoa.'},
+{p:'Qual o coeficiente de ponderação da resistência do aço na flexão (γa1)?',o:['1,00','1,10','1,40','1,50'],c:1,e:'A NBR 8800 usa γa1 = 1,10 para escoamento e instabilidade.'},
+{p:'Como reduzir o risco de FLT sem trocar o perfil?',o:['Pintar a viga','Travar a mesa comprimida em mais pontos (reduzir Lb)','Aumentar o vão','Usar aço de menor resistência'],c:1,e:'Diminuir a distância entre travamentos aumenta muito o momento resistente.'},
+{p:'Qual o limite usual de flecha para vigas de piso na NBR 8800?',o:['L/100','L/200','L/350','L/1000'],c:2,e:'O Anexo C da NBR 8800 indica L/350 para vigas de piso.'}]},
+{id:'md',cod:'MD-18',nome:'Estruturas de Madeira',eyebrow:'MD-18 · Vigas, caibros e terças · NBR 7190',titulo:'Madeira que não enverga',
+quiz:[{p:'O que o kmod considera?',o:['Só a espécie da madeira','Duração da carga, umidade do ambiente e qualidade da peça','O preço da madeira','A cor da madeira'],c:1,e:'kmod = k1 · k2 · k3: duração da carga, classe de umidade e categoria da madeira.'},
+{p:'Qual o γ da resistência à compressão da madeira na NBR 7190?',o:['1,0','1,15','1,4','1,8'],c:2,e:'γwc = 1,4 para compressão. Para cisalhamento, γwv = 1,8.'},
+{p:'Qual o módulo resistente W de uma seção 6 × 12 cm?',o:['72 cm³','144 cm³','864 cm³','12 cm³'],c:1,e:'W = b · h² / 6 = 6 × 144 / 6 = 144 cm³.'},
+{p:'Por que a madeira em ambiente úmido tem resistência reduzida?',o:['Porque fica mais pesada','Porque a umidade reduz resistência e rigidez das fibras','Porque muda de cor','Não há redução'],c:1,e:'A umidade alta reduz a resistência e o módulo de elasticidade; por isso k2 = 0,8 nas classes 3 e 4.'},
+{p:'Qual o limite de flecha usado para vigas de madeira em vãos comuns?',o:['L/50','L/100','L/200','L/500'],c:2,e:'A NBR 7190 limita a flecha a L/200 nos vãos.'}]},
+{id:'rs',cod:'RS-19',nome:'Reservatórios',eyebrow:'RS-19 · Caixa d\u2019água e recalque · NBR 5626',titulo:'Quantos litros de caixa d\u2019água',
+quiz:[{p:'Qual o consumo per capita usual em apartamentos?',o:['50 L/dia','200 L/dia','1.000 L/dia','20 L/dia'],c:1,e:'Para residências e apartamentos, usa-se de 150 a 200 L por pessoa por dia.'},
+{p:'Com bombeamento, como se costuma dividir a reserva?',o:['100% no superior','60% no inferior e 40% no superior','50% e 50%','Tudo no inferior'],c:1,e:'A divisão usual é 3/5 no inferior e 2/5 no superior, mais a reserva de incêndio no superior.'},
+{p:'Quantos dias de reserva a NBR 5626 recomenda, no mínimo?',o:['1 dia (24 h de consumo)','7 dias','1 hora','30 dias'],c:0,e:'A reserva mínima é de 24 horas de consumo. Na prática, usa-se de 1 a 3 dias.'},
+{p:'Para que serve a fórmula de Forchheimer?',o:['Calcular o volume da caixa','Calcular o diâmetro do tubo de recalque','Calcular o consumo','Calcular a pressão da rede'],c:1,e:'D = 1,3 · √Q · X^¼ dá o diâmetro econômico do recalque.'},
+{p:'Onde fica a reserva técnica de incêndio?',o:['No reservatório inferior','No reservatório superior, sem uso no dia a dia','Na rua','No aquecedor'],c:1,e:'A RTI fica no superior e não pode ser consumida no uso normal.'}]},
+{id:'pv',cod:'PV-20',nome:'Pavimentação',eyebrow:'PV-20 · Pavimento flexível · Método do DNIT',titulo:'Quantos centímetros de asfalto e base',
+quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo comparada a uma brita padrão','A umidade do ar','O volume de tráfego'],c:1,e:'O Índice de Suporte Califórnia compara a resistência do material à de uma brita padrão.'},
+{p:'O que é o número N?',o:['O número de faixas','O número de passagens do eixo padrão de 8,2 t na vida útil','A espessura do asfalto','O número de caminhões por dia'],c:1,e:'N é o número equivalente de repetições do eixo padrão durante o período de projeto.'},
+{p:'Se o CBR do subleito diminui, o que acontece com a espessura total do pavimento?',o:['Diminui','Aumenta','Não muda','Some'],c:1,e:'H = 77,67 · N^0,0482 · CBR^−0,598: CBR menor exige pavimento mais espesso.'},
+{p:'Qual o revestimento indicado pelo DNIT para N entre 10⁶ e 5×10⁶?',o:['Tratamento superficial','Revestimento betuminoso com 5 cm','Concreto asfáltico com 12,5 cm','Paralelepípedo'],c:1,e:'Para essa faixa de N, a tabela do DNIT indica revestimento betuminoso de 5 cm.'},
+{p:'Qual o CBR mínimo de uma sub-base granular?',o:['2%','10%','20%','80%'],c:2,e:'A sub-base precisa de CBR ≥ 20%. A base, de CBR ≥ 80% (ou 60% para tráfego leve).'}]}
 ];
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.1.0';
+const VERSAO_APP='1.2.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -499,6 +571,9 @@ const sel=(id,label,opts,hint='')=>`<div class="campo"><label for="${id}">${labe
 const tiles=arr=>`<div class="result">${arr.map(([l,v,d])=>`<div class="res${d?' destaque':''}"><span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
 const V_=id=>+$(id).value;
 const T_=(t,x,y)=>T(x,y,t,'muted','font-size="10" letter-spacing="1"');
+// Barras de aproveitamento (solicitação ÷ resistência) usadas nas verificações
+function usoBarras(itens,x,y,w=260){let s='';itens.forEach(([nome,uso,txt],i)=>{const yy=y+i*58,p=Math.min(uso,1),c=uso>1?'neg':uso>0.85?'amber':'pos';
+  s+=T(x,yy,nome,'ink','font-weight="600" font-size="11"')+`<rect x="${x}" y="${yy+8}" width="${w}" height="12" style="fill:var(--grid)"/><rect x="${x}" y="${yy+8}" width="${w*p}" height="12" style="fill:var(--${c})"/>`+T(x,yy+34,txt+' · '+br(100*uso,0)+'%'+(uso>1?' · NÃO ATENDE':''),uso>1?'neg':'muted','font-size="10"')});return s}
 function outs(){document.querySelectorAll('.ctrl input[type=range]').forEach(i=>{const o=$('o_'+i.id);if(o)o.textContent=br(+i.value,dec(i.step))+' '+i.dataset.unit})}
 const simWrap=(ctrl,extraCtrl='')=>`<div class="sim"><div class="ctrl">${ctrl}<div id="tiles"></div>${extraCtrl}</div><div class="draw" id="draw"></div></div><h3>Memorial de cálculo</h3><div class="memorial" id="memorial"></div>`;
 
@@ -1862,6 +1937,167 @@ Fator de agrupamento (${G} circuito${G>1?'s':''} no eletroduto) = ${br(FAGRUP[Ma
 ${this.circ.map((c,i)=>{const r=rs[i];return r.ok?`C${i+1} ${c.n}: Ib = ${c.P}/${c.V} = ${br(r.Ib,2)} A → disjuntor ${r.In} A · fio ${br(r.S,1)} mm² (Iz = ${br(CAPB1[r.S],1)} × ${br(r.fa,2)} = ${br(r.Iz,1)} A)
    ΔV = 200 × ${c.L} × ${br(r.Ib,2)} / (56 × ${br(r.S,1)} × ${c.V}) = ${br(r.dv,2)}% · critério: ${r.crit}`:`C${i+1} ${c.n}: ${r.erro}`}).join('\n')}
 Use DR de 30 mA nos circuitos de áreas molhadas e tomadas externas.`;}}
+});
+
+// AC-17 · Estruturas de Aço
+Academia.modulo('ac',{
+teoria:`<p>O aço resiste muito tanto à tração quanto à compressão, e por isso vence vãos grandes com pouco peso. O desafio em vigas de aço não é o material romper: é a peça <b>perder estabilidade</b>, torcendo ou enrugando antes de usar toda a sua resistência.</p>
+<div class="cols"><div class="conceito"><h4>Perfil I (W)</h4><p>Mesas largas afastadas do centro dão muita inércia com pouco aço. É o formato mais eficiente para vigas.</p></div>
+<div class="conceito"><h4>Flambagem local</h4><p>Partes finas da seção (mesa ou alma) enrugam sob compressão. Na NBR 8800 são as verificações FLM e FLA.</p></div>
+<div class="conceito"><h4>Flambagem lateral (FLT)</h4><p>A viga sem travamento lateral tomba e torce. É a verificação que mais derruba vigas longas.</p></div></div>
+<h3>Momento resistente (NBR 8800, perfis I compactos)</h3>
+<div class="formula">Mpl = Zx · fy     MRd = MRk / 1,10     MRd ≤ 1,5 · Wx · fy / 1,10</div>
+<div class="formula">FLT: λ = Lb / ry     λp = 1,76 √(E/fy)     Mr = (fy − σr) · Wx,  com σr = 0,3 fy</div>
+<div class="formula">λ ≤ λp: MRk = Mpl     λp &lt; λ ≤ λr: interpolação linear × Cb     λ &gt; λr: MRk = Mcr</div>
+<div class="formula">Mcr = Cb · π² E Iy / Lb² · √[ Cw/Iy · (1 + 0,039 · J · Lb² / Cw) ]</div>
+<h3>Cortante e flecha</h3>
+<div class="formula">VRd = 0,6 · d · tw · fy / 1,10   (alma compacta)     Flecha de piso ≤ L/350</div>
+<div class="dica"><b>Travar é mais barato que aumentar o perfil</b>Ligar a mesa comprimida à laje ou a vigas secundárias reduz Lb e pode multiplicar a resistência. Vigas de cobertura sem travamento são as mais vulneráveis.</div>`,
+exemplo:`<h3>Viga W 310 × 32,7 com 6 m de vão</h3><p>Aço ASTM A572 Grau 50 (fy = 345 MPa). Cargas: permanente 5 kN/m e variável 3 kN/m, mais o peso próprio do perfil (0,32 kN/m).</p>
+<ol class="passos"><li><b>Carga de cálculo.</b> qd = 1,4 × (5 + 0,32) + 1,5 × 3 = <b>11,9 kN/m</b>. Msd = 11,9 × 6² / 8 = <b>53,8 kN·m</b>.</li>
+<li><b>Sem travamento (Lb = 6 m, Cb = 1,14).</b> λ = 600 / 2,16 = 278, maior que λr = 129. Vale Mcr = 39,2 kN·m → MRd = <b>35,6 kN·m</b> &lt; 53,8 ✗ A viga tomba.</li>
+<li><b>Travando a cada 2 m (Cb = 1,0).</b> λ = 200 / 2,16 = 92,8, entre λp = 42,4 e λr = 129. Interpolando, MRd = <b>114 kN·m</b> ≥ 53,8 ✓</li>
+<li><b>Cortante.</b> Vsd = 35,8 kN ≤ VRd = 389 kN ✓</li>
+<li><b>Flecha.</b> 1,10 cm ≤ L/350 = 1,71 cm ✓ O mesmo perfil passa ou falha só pelo travamento.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Comece com Lb = 6 m e depois reduza para 2 m.</div>`,
+sim:{html:()=>simWrap(sel('acP','Perfil',Object.keys(PERFIS_W).map(k=>[k,k,k==='W 310 x 32,7']))+sel('acA','Aço',[[345,'ASTM A572 Gr. 50 (fy 345 MPa)',1],[250,'ASTM A36 / MR250 (fy 250 MPa)']])+rng('acL','Vão L',2,12,0.5,6,'m')+rng('acG','Carga permanente g',0,30,0.5,5,'kN/m','Laje, revestimento, alvenaria')+rng('acQ','Carga variável q',0,30,0.5,3,'kN/m','Uso')+rng('acB','Distância entre travamentos Lb',0.5,12,0.5,6,'m','Pontos onde a mesa comprimida está presa')+sel('acC','Fator Cb',[[1,'1,00 (conservador)'],[1.14,'1,14 (biapoiada, carga distribuída, sem travamento no meio)',1],[1.3,'1,30']])),
+update(){const nome=$('acP').value,L=V_('acL'),Lb=Math.min(V_('acB'),L),r=calc.vigaAco(nome,V_('acA'),L,V_('acG'),V_('acQ'),Lb,V_('acC')),P=r.P;
+  const ok=r.okM&&r.okV&&r.okF;
+  $('tiles').innerHTML=tiles([['Msd',br(r.Msd/100,1)+' kN·m'],['MRd',br(r.MRd/100,1)+' kN·m',1],['Governa',r.gov],['Flecha',br(r.flecha,2)+' / '+br(r.lim,2)+' cm']])+`<span class="pill ${ok?'ok':'alerta'}">${ok?'Perfil atende':'Perfil não atende'}</span>`+(r.FLA.esbelta?' <span class="pill alerta">Alma esbelta: fora do escopo</span>':'');
+  const sc=Math.min(180/P.d,140/P.bf),ox=40,oy=30,D=P.d*sc,B=P.bf*sc,tf=Math.max(2,P.tf*sc),tw=Math.max(2,P.tw*sc);
+  let s=T_('SEÇÃO',ox,18)+`<path d="M${ox} ${oy} h${B} v${tf} h${-(B-tw)/2} v${D-2*tf} h${(B-tw)/2} v${tf} h${-B} v${-tf} h${(B-tw)/2} v${-(D-2*tf)} h${-(B-tw)/2}z" style="fill:var(--steel-soft);stroke:var(--ink);stroke-width:1.5"/>`;
+  s+=T(ox+B/2,oy+D+18,'bf = '+br(P.bf*10,0)+' mm','muted','text-anchor="middle" font-size="10"')+T(ox+B+8,oy+D/2,'d = '+br(P.d*10,0),'muted','font-size="10"')+T(ox,oy+D+36,br(P.massa,1)+' kg/m','muted','font-size="10"');
+  const vx=220,vw=380,vy=70;s+=T_('ELEVAÇÃO · TRAVAMENTOS',vx,18)+`<rect x="${vx}" y="${vy}" width="${vw}" height="10" style="fill:var(--ink)"/>`+`<path d="M${vx} ${vy+10} l-8 14 h16z" style="fill:none;stroke:var(--ink)"/><path d="M${vx+vw} ${vy+10} l-8 14 h16z" style="fill:none;stroke:var(--ink)"/>`;
+  const nt=Math.round(L/Lb);for(let i=0;i<=nt;i++){const x=vx+vw*Math.min(1,i*Lb/L);s+=Ln(x,vy-14,x,vy-2,'amber',3)+`<circle cx="${x}" cy="${vy-16}" r="3" style="fill:var(--amber)"/>`}
+  s+=T(vx+vw/2,vy+44,`L = ${br(L,1)} m · Lb = ${br(Lb,1)} m`,'muted','text-anchor="middle" font-size="10"');
+  s+=usoBarras([['Flexão (Msd / MRd)',r.Msd/r.MRd,`governa ${r.gov}`],['Cortante (Vsd / VRd)',r.Vsd/r.VRd,br(r.Vsd,1)+' de '+br(r.VRd,0)+' kN'],['Flecha (δ / L/350)',r.flecha/r.lim,br(r.flecha,2)+' de '+br(r.lim,2)+' cm']],vx,130,vw);
+  $('draw').innerHTML=SVG(640,320,'Seção do perfil, travamentos e verificações',s);
+  const lin=(n,o)=>`${n}: λ = ${br(o.l,1)} · λp = ${br(o.lp,1)} · λr = ${br(o.lr,1)} → MRk = ${br(o.M/100,1)} kN·m`;
+  $('memorial').textContent=`${nome} · A = ${br(P.A,1)} cm² · Ix = ${br(P.Ix,0)} cm⁴ · Wx = ${br(P.Wx,1)} cm³ · Zx = ${br(P.Zx,1)} cm³ · ry = ${br(P.ry,2)} cm
+   (propriedades da geometria nominal, sem os raios de concordância)
+1) qd = 1,4 × (${br(V_('acG'),1)} + ${br(r.pp,2)}) + 1,5 × ${br(V_('acQ'),1)} = ${br(r.qd,2)} kN/m → Msd = ${br(r.Msd/100,2)} kN·m · Vsd = ${br(r.Vsd,2)} kN
+2) Mpl = Zx · fy = ${br(r.Mpl/100,1)} kN·m · Mr = (fy − 0,3fy) · Wx = ${br(r.Mr/100,1)} kN·m
+3) ${lin('FLA (alma)',r.FLA)}
+4) ${lin('FLM (mesa)',r.FLM)}
+5) ${lin('FLT (Lb = '+br(Lb,1)+' m, Cb = '+br(V_('acC'),2)+')',r.FLT)}
+6) MRd = mín(MRk ; 1,5 Wx fy) / 1,10 = ${br(r.MRd/100,1)} kN·m ${r.okM?'≥':'<'} Msd ${r.okM?'✓':'✗'}
+7) VRd = ${br(r.VRd,1)} kN ${r.okV?'≥':'<'} Vsd ${r.okV?'✓':'✗'}
+8) Flecha (g + q) = ${br(r.flecha,2)} cm ${r.okF?'≤':'>'} L/350 = ${br(r.lim,2)} cm ${r.okF?'✓':'✗'}`;}}
+});
+
+// MD-18 · Estruturas de Madeira
+Academia.modulo('md',{
+teoria:`<p>A madeira é leve, resistente e renovável, mas o comportamento muda com a <b>umidade</b> e com o <b>tempo de carga</b>. Uma viga que aguenta um peso por minutos pode não aguentar o mesmo peso por anos. A NBR 7190 cuida disso com o coeficiente k<sub>mod</sub>.</p>
+<div class="cols"><div class="conceito"><h4>Classes de resistência</h4><p>Coníferas (pinus, eucalipto de reflorestamento leve) e dicotiledôneas (madeiras duras, como peroba e ipê), de C20 a C60.</p></div>
+<div class="conceito"><h4>kmod</h4><p>Produto de três fatores: duração da carga (k1), umidade do ambiente (k2) e qualidade da peça (k3).</p></div>
+<div class="conceito"><h4>Flecha</h4><p>Muitas vezes é a flecha, e não a resistência, que define a seção de caibros e terças.</p></div></div>
+<h3>Verificações (NBR 7190, método da edição de 1997)</h3>
+<div class="formula">kmod = k1 · k2 · k3     k1: longa duração 0,70 · k2: classe de umidade 1 e 2 = 1,0 · k3: 2ª categoria 0,8</div>
+<div class="formula">fcd = kmod · fc0,k / 1,4     fvd = kmod · fv,k / 1,8     Ec,ef = kmod · Ec0,m</div>
+<div class="formula">Flexão: σ = Md / W ≤ fcd     Cisalhamento: τ = 1,5 · Vd / (b·h) ≤ fvd     Flecha (g + 0,2q) ≤ L/200</div>
+<div class="dica"><b>Norma em transição</b>A NBR 7190 foi revisada em 2022, com novas classes e coeficientes. Aqui usamos o método de 1997, que ainda é o mais ensinado. Em projeto, confira a edição vigente.</div>`,
+exemplo:`<h3>Terça de dicotiledônea C30, seção 6 × 12 cm</h3><p>Vão de 3 m, terças espaçadas a cada 60 cm. Telhado com 0,8 kN/m² de carga permanente (telha cerâmica e madeiramento) e 0,25 kN/m² de variável.</p>
+<ol class="passos"><li><b>kmod.</b> 0,70 × 1,0 × 0,8 = <b>0,56</b>. fcd = 0,56 × 30 / 1,4 = <b>12,0 MPa</b>.</li>
+<li><b>Carga na terça.</b> Permanente 0,8 × 0,6 + peso próprio 0,06 = 0,54 kN/m. Variável 0,25 × 0,6 = 0,15 kN/m. Fd = 1,4 × 0,69 = <b>0,96 kN/m</b>.</li>
+<li><b>Flexão.</b> Md = 0,96 × 3² / 8 = 1,08 kN·m. W = 6 × 12² / 6 = 144 cm³. σ = <b>7,5 MPa</b> ≤ 12,0 ✓</li>
+<li><b>Cisalhamento.</b> τ = 0,30 MPa ≤ fvd = 1,56 MPa ✓</li>
+<li><b>Flecha.</b> Com Ec,ef = 8.120 MPa, δ = <b>8,5 mm</b> ≤ L/200 = 15 mm ✓</li></ol>
+<div class="dica"><b>Confira no simulador</b>Troque para conífera C20 e veja a flecha passar do limite.</div>`,
+sim:{html:()=>simWrap(sel('mdC','Madeira',Object.keys(MADEIRAS).map(k=>[k,k,k==='Dicotiledônea C30']))+`<div class="row">${rng('mdB','Largura b',3,20,0.5,6,'cm')}${rng('mdH','Altura h',5,30,0.5,12,'cm')}</div>`+rng('mdL','Vão L',1,6,0.1,3,'m')+rng('mdS','Espaçamento entre peças',0.3,2,0.05,0.6,'m')+rng('mdG','Carga permanente',0.1,3,0.05,0.8,'kN/m²','Telha, madeiramento, forro')+rng('mdQ','Carga variável',0,3,0.05,0.25,'kN/m²','Manutenção, sobrecarga')+sel('mdK1','Duração da carga (k1)',[[0.6,'Permanente (0,60)'],[0.7,'Longa duração (0,70)',1],[0.8,'Média duração (0,80)'],[0.9,'Curta duração (0,90)']])+sel('mdK2','Umidade do ambiente (k2)',[[1,'Classes 1 e 2: ambiente seco a normal (1,0)',1],[0.8,'Classes 3 e 4: úmido (0,8)']])+sel('mdK3','Qualidade da madeira (k3)',[[0.8,'Segunda categoria (0,8)',1],[1,'Primeira categoria, classificada (1,0)']])),
+update(){const cls=$('mdC').value,b=V_('mdB'),h=V_('mdH'),L=V_('mdL'),r=calc.vigaMadeira(cls,b,h,L,V_('mdS'),V_('mdG'),V_('mdQ'),V_('mdK1'),V_('mdK2'),V_('mdK3')),ok=r.okM&&r.okV&&r.okF;
+  $('tiles').innerHTML=tiles([['kmod',br(r.kmod,2)],['σ / fcd',br(r.sig,1)+' / '+br(r.fcd,1)+' MPa',1],['τ / fvd',br(r.tau,2)+' / '+br(r.fvd,2)+' MPa'],['Flecha',br(r.flecha,1)+' / '+br(r.lim,1)+' mm',1]])+`<span class="pill ${ok?'ok':'alerta'}">${ok?'Peça atende':'Peça não atende'}</span>`;
+  const sc=Math.min(150/h,110/b,8),W=b*sc,H=h*sc,ox=40,oy=34;
+  let s=T_('SEÇÃO',ox,18)+`<rect x="${ox}" y="${oy}" width="${W}" height="${H}" style="fill:var(--soil-fill);stroke:var(--soil);stroke-width:2"/>`;for(let i=1;i<5;i++)s+=`<path d="M${ox+2} ${oy+i*H/5} q${W/2} ${-6} ${W-4} 0" style="fill:none;stroke:var(--soil);stroke-width:.8;opacity:.7"/>`;
+  s+=T(ox+W/2,oy+H+16,b+' cm','muted','text-anchor="middle" font-size="10"')+T(ox+W+6,oy+H/2,h+' cm','muted','font-size="10"');
+  s+=usoBarras([['Flexão (σ / fcd)',r.sig/r.fcd,br(r.sig,2)+' de '+br(r.fcd,2)+' MPa'],['Cisalhamento (τ / fvd)',r.tau/r.fvd,br(r.tau,2)+' de '+br(r.fvd,2)+' MPa'],['Flecha (δ / L/200)',r.flecha/r.lim,br(r.flecha,1)+' de '+br(r.lim,1)+' mm']],220,40,380);
+  $('draw').innerHTML=SVG(640,230,'Seção da peça de madeira e verificações',s);
+  $('memorial').textContent=`${cls} · b × h = ${b} × ${h} cm · W = ${br(r.W,1)} cm³ · I = ${br(r.I,0)} cm⁴
+1) kmod = ${br(V_('mdK1'),2)} × ${br(V_('mdK2'),2)} × ${br(V_('mdK3'),2)} = ${br(r.kmod,3)}
+2) fcd = ${br(r.kmod,3)} × ${MADEIRAS[cls].fc} / 1,4 = ${br(r.fcd,2)} MPa · fvd = ${br(r.fvd,2)} MPa · Ec,ef = ${br(r.Eef,0)} MPa
+3) Cargas na peça: permanente ${br(r.gl,3)} kN/m (com peso próprio ${br(r.pp,3)}) · variável ${br(r.ql,3)} kN/m
+4) Fd = 1,4 × (${br(r.gl,3)} + ${br(r.ql,3)}) = ${br(r.Fd,3)} kN/m → Md = ${br(r.Md,3)} kN·m · Vd = ${br(r.Vd,3)} kN
+5) σ = Md / W = ${br(r.sig,2)} MPa ${r.okM?'≤':'>'} fcd ${r.okM?'✓':'✗'}
+6) τ = 1,5 Vd / (b·h) = ${br(r.tau,3)} MPa ${r.okV?'≤':'>'} fvd ${r.okV?'✓':'✗'}
+7) Flecha com g + 0,2q = ${br(r.qs,3)} kN/m: δ = ${br(r.flecha,2)} mm ${r.okF?'≤':'>'} L/200 = ${br(r.lim,1)} mm ${r.okF?'✓':'✗'}
+   Método da NBR 7190:1997. A edição de 2022 muda classes e coeficientes.`;}}
+});
+
+// RS-19 · Reservatórios
+Academia.modulo('rs',{
+teoria:`<p>A caixa d'água garante água mesmo quando a rede pública falha. O tamanho certo depende de quantas pessoas usam, de quanto cada uma consome e de quantos dias de reserva se quer ter.</p>
+<div class="cols"><div class="conceito"><h4>Consumo per capita</h4><p>Litros por pessoa por dia. Residência: 150 a 200 L. Escritório: cerca de 50 L. Escola: cerca de 50 L por aluno.</p></div>
+<div class="conceito"><h4>População</h4><p>Regra usual em residências: 2 pessoas por dormitório. Em prédios, some todas as unidades.</p></div>
+<div class="conceito"><h4>Reserva de incêndio (RTI)</h4><p>Volume exigido pelo Corpo de Bombeiros, guardado no reservatório superior e intocável no uso diário.</p></div></div>
+<h3>Dimensionamento (NBR 5626)</h3>
+<div class="formula">Consumo diário = pessoas × consumo per capita     Reserva = consumo diário × dias (1 a 3 dias)</div>
+<div class="formula">Com bombeamento: 60% no reservatório inferior e 40% no superior, mais a RTI no superior</div>
+<h3>Bomba de recalque</h3>
+<div class="formula">Vazão = consumo diário / horas de funcionamento     Forchheimer: D = 1,3 · √Q · X^¼,  X = horas / 24</div>
+<p>O tubo de sucção usa um diâmetro comercial acima do de recalque, para a bomba não "puxar" ar.</p>
+<div class="dica"><b>Limpeza</b>Reservatório precisa de tampa vedada, extravasor com tela e limpeza a cada 6 meses. Água parada destampada vira criadouro do Aedes aegypti.</div>`,
+exemplo:`<h3>Prédio com 4 apartamentos de 2 dormitórios</h3><p>16 pessoas, 200 L por pessoa por dia, 2 dias de reserva, reserva de incêndio de 6.000 L e bomba funcionando 6 horas por dia.</p>
+<ol class="passos"><li><b>Consumo diário.</b> 16 × 200 = <b>3.200 L/dia</b>. Reserva de 2 dias: <b>6.400 L</b>.</li>
+<li><b>Reservatório inferior.</b> 60% de 6.400 = <b>3.840 L</b>. Em concreto, com 1,50 m de altura útil: 2,56 m² → cerca de 1,60 × 1,60 m.</li>
+<li><b>Reservatório superior.</b> 40% de 6.400 + 6.000 de RTI = <b>8.560 L</b> → caixa comercial de 10.000 L.</li>
+<li><b>Bomba.</b> 3.200 L em 6 h = 533 L/h. Forchheimer: D = 1,3 × √0,000148 × 0,25^¼ = 11 mm → recalque <b>DN 20</b> e sucção <b>DN 25</b>.</li>
+<li><b>Tempo de enchimento.</b> O superior recebe 3.840 L do inferior em cerca de 7,2 horas de bomba.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+sim:{html:()=>simWrap(rng('rsP','Pessoas',1,400,1,16,'')+sel('rsC','Consumo per capita',[[150,'Residência popular (150 L/dia)'],[200,'Residência / apartamento (200 L/dia)',1],[50,'Escritório (50 L/dia)'],[50.0001,'Escola, por aluno (50 L/dia)'],[250,'Alto padrão (250 L/dia)']])+rng('rsD','Dias de reserva',1,3,0.5,2,'dias')+rng('rsR','Reserva de incêndio (RTI)',0,30000,500,6000,'L','Conforme o Corpo de Bombeiros')+sel('rsB','Sistema',[['1','Com bomba (inferior + superior)',1],['0','Só caixa superior (casa, rede direta)']])+rng('rsH','Horas de bomba por dia',2,12,0.5,6,'h')+rng('rsU','Altura útil do inferior',0.8,3,0.1,1.5,'m')),
+update(){const rec=$('rsB').value==='1',r=calc.reservatorio(V_('rsP'),Math.round(V_('rsC')),V_('rsD'),V_('rsR'),rec,V_('rsH'),V_('rsU'));
+  const cx=c=>c?(c.n>1?c.n+' × ':'')+br(c.cap,0)+' L':'—';
+  $('tiles').innerHTML=tiles([['Consumo diário',br(r.diario,0)+' L'],['Superior',br(r.sup,0)+' L → '+cx(r.caixaSup),1],['Inferior',rec?br(r.inf,0)+' L':'—',1],['Bomba',rec?'DN '+r.rec+' / sucção DN '+r.suc:'—']]);
+  const sup=Math.max(r.sup,1),inf=Math.max(r.inf,1),mx=Math.max(sup,inf),hs=40+70*sup/mx,hi=40+70*inf/mx,chao=300,tet=140,base=tet-4;
+  let s=T_('ESQUEMA',30,18)+`<rect x="60" y="${tet}" width="240" height="${chao-tet}" style="fill:none;stroke:var(--line);stroke-width:1.5"/>`;for(let i=1;i<3;i++)s+=Ln(60,tet+i*(chao-tet)/3,300,tet+i*(chao-tet)/3,'line');
+  s+=`<rect x="120" y="${base-hs}" width="120" height="${hs}" style="fill:var(--water-fill);stroke:var(--ink);stroke-width:2"/>`;
+  if(r.sup>0&&V_('rsR')>0){const hr=hs*V_('rsR')/r.sup;s+=`<rect x="121" y="${base-hr}" width="118" height="${hr-1}" style="fill:var(--neg-fill)"/>`+T(180,base-hr/2+4,'RTI','neg','text-anchor="middle" font-size="10" font-weight="600"')}
+  s+=T(132,base-hs-8,'Superior · '+br(r.sup,0)+' L','ink','font-size="11" font-weight="600"');
+  if(rec){s+=`<rect x="330" y="${chao-hi}" width="150" height="${hi}" style="fill:var(--water-fill);stroke:var(--ink);stroke-width:2"/>`+T(340,chao-hi-8,'Inferior · '+br(r.inf,0)+' L','ink','font-size="11" font-weight="600"');
+    const yt=base-hs+12;s+=Ln(480,chao-10,512,chao-10,'steel',2.5)+`<circle cx="522" cy="${chao-10}" r="10" style="fill:var(--amber);stroke:var(--ink)"/>`+T(538,chao-6,'bomba','amber-ink','font-size="10"')+Ln(522,chao-20,522,yt,'steel',2.5)+Ln(522,yt,240,yt,'steel',2.5)+T(530,(yt+chao)/2,'recalque DN '+r.rec,'steel','font-size="10"');}
+  s+=Ln(30,chao,610,chao,'soil',2)+T(36,chao+16,'térreo','muted','font-size="10"');
+  $('draw').innerHTML=SVG(640,340,'Esquema dos reservatórios superior e inferior',s);
+  $('memorial').textContent=`1) Consumo diário = ${V_('rsP')} pessoas × ${Math.round(V_('rsC'))} L = ${br(r.diario,0)} L/dia
+2) Reserva = ${br(r.diario,0)} × ${br(V_('rsD'),1)} dias = ${br(r.reserva,0)} L · RTI = ${br(V_('rsR'),0)} L · total = ${br(r.total,0)} L
+${rec?`3) Inferior = 60% × ${br(r.reserva,0)} = ${br(r.inf,0)} L → com ${br(V_('rsU'),2)} m de altura útil: ${br(r.area,2)} m² (≈ ${br(r.lado,2)} × ${br(r.lado,2)} m)
+4) Superior = 40% × ${br(r.reserva,0)} + RTI = ${br(r.sup,0)} L → ${cx(r.caixaSup)}
+5) Vazão da bomba = ${br(r.diario,0)} / ${br(V_('rsH'),1)} h = ${br(r.Qlh,0)} L/h · Forchheimer: D = 1,3 √Q · (${br(V_('rsH'),1)}/24)^¼ = ${br(r.Dmm,1)} mm
+   Recalque DN ${r.rec} · sucção DN ${r.suc} · enchimento do superior em ${br(r.tempo,1)} h de bomba`:`3) Sem bomba: todo o volume no superior = ${br(r.sup,0)} L → ${cx(r.caixaSup)}`}`;}}
+});
+
+// PV-20 · Pavimentação
+Academia.modulo('pv',{
+teoria:`<p>O pavimento é um "sanduíche" de camadas. Cada uma espalha a carga dos pneus para a de baixo, até que o solo natural (subleito) receba uma pressão que ele aguenta. Quanto mais fraco o solo e mais pesado o tráfego, mais espesso o pavimento.</p>
+<div class="cols"><div class="conceito"><h4>CBR</h4><p>Índice de Suporte Califórnia: a resistência do solo comparada a uma brita padrão. Solo com CBR 5 é fraco; brita graduada passa de 80.</p></div>
+<div class="conceito"><h4>Número N</h4><p>Quantas vezes o eixo padrão de 8,2 toneladas vai passar pela pista durante a vida útil do projeto.</p></div>
+<div class="conceito"><h4>Camadas</h4><p>Revestimento asfáltico, base, sub-base e, se o subleito for muito fraco, reforço do subleito.</p></div></div>
+<h3>Método do DNIT (antigo DNER, Souza 1981)</h3>
+<div class="formula">Espessura total equivalente: H = 77,67 · N^0,0482 · CBR^−0,598   (cm, em material granular)</div>
+<div class="formula">Revestimento pelo N: até 10⁶ tratamento superficial · até 5×10⁶ 5 cm · até 10⁷ 7,5 cm · até 5×10⁷ 10 cm · acima 12,5 cm</div>
+<div class="formula">R·KR + B ≥ H20     R·KR + B + h20 ≥ Hn     R·KR + B + h20 + hn ≥ Hm     (KR = 2,0 para concreto asfáltico)</div>
+<div class="formula">N = 365 × Σ VDM × FV × FR     (FV: fator de veículo · FR: fator climático)</div>
+<div class="dica"><b>Qualidade dos materiais</b>A sub-base precisa de CBR ≥ 20 e a base de CBR ≥ 80 (ou ≥ 60 para N até 5×10⁶). Sem compactação na umidade ótima, nenhuma espessura resolve.</div>`,
+exemplo:`<h3>Rua de bairro com N = 3 × 10⁶ e subleito com CBR 6</h3>
+<ol class="passos"><li><b>Revestimento.</b> N entre 10⁶ e 5×10⁶: <b>5 cm</b> de concreto asfáltico, KR = 2,0, valendo 10 cm de material granular.</li>
+<li><b>Proteção da sub-base (CBR 20).</b> H20 = 77,67 × (3×10⁶)^0,0482 × 20^−0,598 = <b>26,6 cm</b>. Base: B ≥ 26,6 − 10 = 16,6 → <b>17 cm</b>.</li>
+<li><b>Proteção do subleito (CBR 6).</b> Hm = <b>54,6 cm</b>. Sub-base: h20 ≥ 54,6 − 10 − 17 = 27,6 → <b>28 cm</b>.</li>
+<li><b>Estrutura final.</b> 5 cm de CBUQ + 17 cm de base + 28 cm de sub-base = <b>50 cm</b> de pavimento.</li>
+<li><b>Leitura.</b> Se o subleito tivesse CBR 10, a sub-base cairia para menos da metade. Melhorar o solo da base costuma ser a economia mais barata.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+sim:{html:()=>simWrap(sel('pvM','Como informar o tráfego',[['n','Número N direto',1],['v','Calcular pelo volume de veículos']])+`<div id="pvNbox">${rng('pvN','N (expoente)',5,8,0.01,6.48,'','N = 10 elevado a este valor (6,48 ≈ 3 × 10⁶)')}</div><div id="pvVbox" hidden>${rng('pvV','Veículos comerciais por dia (VDM)',10,5000,10,800,'')}${rng('pvA','Período de projeto',5,20,1,10,'anos')}${rng('pvT','Crescimento do tráfego',0,8,0.5,3,'% ao ano')}${rng('pvF','Fator de veículo FV',0.5,6,0.1,2.5,'')}${sel('pvS','Faixa de projeto',[[0.5,'Pista de mão dupla (50%)',1],[1,'Faixa única (100%)']])}</div>`+rng('pvC','CBR do subleito',2,19,1,6,'%')+rng('pvR','CBR do reforço (0 = sem reforço)',0,19,1,0,'%','Use quando o subleito for muito fraco')),
+init(){const t=()=>{const v=$('pvM').value==='v';$('pvNbox').hidden=v;$('pvVbox').hidden=!v};$('pvM').addEventListener('input',t);t()},
+update(){const porV=$('pvM').value==='v',N=porV?calc.numeroN(V_('pvV'),V_('pvA'),V_('pvT'),V_('pvF'),+$('pvS').value):10**V_('pvN'),cr=V_('pvR')>V_('pvC')?V_('pvR'):null,r=calc.pavimento(N,V_('pvC'),cr);
+  const ne=x=>{const e=Math.floor(Math.log10(x));return br(x/10**e,1)+' × 10^'+e};
+  $('tiles').innerHTML=tiles([['Número N',ne(N)],['Revestimento',r.R?br(r.R,1)+' cm':'trat. superficial'],['Base / sub-base',r.B+' / '+r.h20+' cm',1],['Pavimento total',br(r.total,1)+' cm',1]])+(cr==null&&V_('pvR')>0?'<span class="pill alerta">O reforço precisa ter CBR maior que o subleito</span>':'');
+  const cam=[['Revestimento',r.R||1.5,'ink',r.R?br(r.R,1)+' cm':'tratamento superficial'],['Base (CBR ≥ 80)',r.B,'amber',r.B+' cm'],['Sub-base (CBR ≥ 20)',r.h20,'soil',r.h20+' cm']];if(r.hn)cam.push(['Reforço (CBR '+cr+')',r.hn,'steel',r.hn+' cm']);
+  const tot=cam.reduce((a,c)=>a+c[1],0),sc=Math.min(4.5,260/tot);let y=40,s=T_('SEÇÃO DO PAVIMENTO',30,18);
+  cam.forEach(([n,e,c,t])=>{const hh=Math.max(6,e*sc);s+=`<rect x="60" y="${y}" width="260" height="${hh}" style="fill:var(--${c});opacity:${c==='ink'?.85:.5};stroke:var(--line)"/>`+T(332,y+hh/2+4,n+' · '+t,'ink','font-size="11"');y+=hh});
+  s+=`<rect x="60" y="${y}" width="260" height="40" style="fill:var(--soil-fill)"/>`+T(332,y+22,'Subleito (CBR '+V_('pvC')+')','ink','font-size="11"');for(let i=0;i<7;i++)s+=Ln(70+i*38,y+30,82+i*38,y+18,'soil',1);
+  s+=Ln(48,40,48,y,'muted')+T(42,(40+y)/2,br(r.total,0)+' cm','muted','text-anchor="end" font-size="10"');
+  $('draw').innerHTML=SVG(640,y+56,'Seção das camadas do pavimento',s);
+  $('memorial').textContent=`${porV?`N = 365 × Σ VDM(1 + ${br(V_('pvT'),1)}%)^i × FV ${br(V_('pvF'),1)} × faixa ${+$('pvS').value*100}% em ${V_('pvA')} anos = ${ne(N)}\n`:''}1) N = ${ne(N)} → ${r.tipo}${r.R?` (R = ${br(r.R,1)} cm, KR = 2,0)`:' (sem contribuição estrutural)'}
+2) H20 = 77,67 × N^0,0482 × 20^−0,598 = ${br(r.H20,1)} cm → B ≥ ${br(r.H20,1)} − ${br(r.R*r.KR,1)} = ${br(r.H20-r.R*r.KR,1)} → B = ${r.B} cm (mínimo 15)
+${r.temRef?`3) Hn (CBR ${cr}) = ${br(r.Hn,1)} cm → h20 ≥ ${br(r.Hn,1)} − ${br(r.R*r.KR,1)} − ${r.B} → h20 = ${r.h20} cm
+4) Hm (CBR ${V_('pvC')}) = ${br(r.Hm,1)} cm → reforço ≥ ${br(r.Hm,1)} − ${br(r.R*r.KR+r.B+r.h20,1)} → hn = ${r.hn} cm`:`3) Hm (CBR ${V_('pvC')}) = ${br(r.Hm,1)} cm → h20 ≥ ${br(r.Hm,1)} − ${br(r.R*r.KR,1)} − ${r.B} → h20 = ${r.h20} cm`}
+Total: ${br(r.total,1)} cm · Base e sub-base consideradas granulares (K = 1,0).`;}}
 });
 
 iniciar();

@@ -6,6 +6,7 @@ set -e
 node testes/calculos.test.js
 node testes/onda2.test.js
 node testes/geografico.test.js
+node testes/onda3.test.js
 python3 ferramentas/empacotar.py
 python3 testes/interface.py
 python3 testes/bancada_sig.py

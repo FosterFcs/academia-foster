@@ -12,6 +12,10 @@ const TUBO_QUEDA=[[40,4,8,2],[50,10,24,6],[75,30,70,12],[100,240,500,84],[150,96
 const COLETOR={100:[null,216,250,300],150:[700,840,1000,1200],200:[1400,1600,1920,2300],250:[2500,2900,3500,4200],300:[3900,4600,5600,6700],400:[7000,8300,10000,12000]};
 const RAMAL_ESG=[[40,3],[50,6],[75,20],[100,160]];
 const SECOES=[1.5,2.5,4,6,10,16,25,35],CAPB1={1.5:17.5,2.5:24,4:32,6:41,10:57,16:76,25:101,35:125},FAGRUP=[1,1,0.8,0.7,0.65,0.6,0.57,0.54,0.52,0.5],DISJ=[6,10,13,16,20,25,32,40,50,63,70,80,100];
+// Onda 3: perfis W (dimensões nominais d, bf, tw, tf em mm), madeiras NBR 7190 (1997), caixas e diâmetros comerciais
+const PERFIS_W={'W 150 x 13,0':[148,100,4.3,4.9],'W 200 x 15,0':[200,100,4.3,5.2],'W 200 x 22,5':[206,102,6.2,8.0],'W 250 x 25,3':[257,102,6.1,8.4],'W 310 x 32,7':[313,102,6.6,10.8],'W 360 x 39,0':[353,128,6.5,10.7],'W 410 x 46,1':[403,140,7.0,11.2],'W 460 x 52,0':[450,152,7.6,10.8]};
+const MADEIRAS={'Conífera C20':{fc:20,fv:4,E:3500,rho:400},'Conífera C25':{fc:25,fv:5,E:8500,rho:450},'Conífera C30':{fc:30,fv:6,E:14500,rho:500},'Dicotiledônea C20':{fc:20,fv:4,E:9500,rho:650},'Dicotiledônea C30':{fc:30,fv:5,E:14500,rho:800},'Dicotiledônea C40':{fc:40,fv:6,E:19500,rho:950},'Dicotiledônea C60':{fc:60,fv:8,E:24500,rho:1000}};
+const CAIXAS=[310,500,1000,1500,2000,3000,5000,10000,15000,20000],DN_RECALQUE=[20,25,32,40,50,60,75,85,110];
 const calc={
   viga(L,q,P,a,N=400){
     const RB=q*L/2+P*a/L,RA=q*L+P-RB,xs=[],V=[],M=[];
@@ -143,6 +147,50 @@ const calc={
     for(const S of SECOES){if(S<smin)continue;const Iz=CAPB1[S]*fa,okI=!!In&&In<=Iz+1e-9,okV=dv(S)<=4+1e-9;
       if(okI&&okV)return{Ib,fa,S,Iz,In,dv:dv(S),crit,ok:true};crit=!okI?'capacidade de corrente':'queda de tensão'}
     return{Ib,fa,In,ok:false,erro:'Nenhuma seção até 35 mm² atende. Divida o circuito ou reduza o comprimento.'};
+  },
+  perfilW(nome){
+    const[d0,bf0,tw0,tf0]=PERFIS_W[nome],d=d0/10,bf=bf0/10,tw=tw0/10,tf=tf0/10,h=d-2*tf;
+    const A=2*bf*tf+h*tw,Ix=(bf*d**3-(bf-tw)*h**3)/12,Iy=2*tf*bf**3/12+h*tw**3/12;
+    return{d,bf,tw,tf,h,A,Ix,Wx:2*Ix/d,Zx:bf*tf*(d-tf)+tw*h*h/4,Iy,ry:Math.sqrt(Iy/A),J:(2*bf*tf**3+(d-tf)*tw**3)/3,Cw:Iy*(d-tf)**2/4,massa:A*0.785};
+  },
+  vigaAco(nome,fyMPa,L,g,q,Lb,Cb){
+    const P=calc.perfilW(nome),E=20000,fy=fyMPa/10,sr=0.3*fy,ga=1.10,Lc=L*100,Lbc=Lb*100,raiz=k=>Math.sqrt(k*E/fy);
+    const pp=P.massa*0.00981,qd=1.4*(g+pp)+1.5*q,Msd=qd*L*L/8*100,Vsd=qd*L/2;
+    const Mpl=P.Zx*fy,Mr=(fy-sr)*P.Wx,interp=(Mr_,l,lp,lr)=>Mpl-(Mpl-Mr_)*(l-lp)/(lr-lp);
+    const FLA={l:P.h/P.tw,lp:3.76*raiz(1),lr:5.70*raiz(1)};FLA.esbelta=FLA.l>FLA.lr;FLA.M=FLA.l<=FLA.lp?Mpl:Math.max(0,interp(fy*P.Wx,FLA.l,FLA.lp,FLA.lr));
+    const FLM={l:P.bf/(2*P.tf),lp:0.38*raiz(1),lr:0.83*Math.sqrt(E/(fy-sr))};FLM.M=FLM.l<=FLM.lp?Mpl:FLM.l<=FLM.lr?interp(Mr,FLM.l,FLM.lp,FLM.lr):0.69*E*P.Wx/FLM.l**2;
+    const b1=(fy-sr)*P.Wx/(E*P.J),Mcr=Cb*Math.PI**2*E*P.Iy/Lbc**2*Math.sqrt(P.Cw/P.Iy*(1+0.039*P.J*Lbc**2/P.Cw));
+    const FLT={l:Lbc/P.ry,lp:1.76*raiz(1),lr:1.38*Math.sqrt(P.Iy*P.J)/(P.ry*P.J*b1)*Math.sqrt(1+Math.sqrt(1+27*P.Cw*b1*b1/P.Iy)),Mcr};
+    FLT.M=FLT.l<=FLT.lp?Mpl:FLT.l<=FLT.lr?Math.min(Mpl,Cb*interp(Mr,FLT.l,FLT.lp,FLT.lr)):Math.min(Mpl,Mcr);
+    const MRk=Math.min(FLA.M,FLM.M,FLT.M),MRd=Math.min(MRk,1.5*P.Wx*fy)/ga,gov=MRk>=Mpl-1e-9?'plastificação total':MRk===FLT.M?'FLT':MRk===FLM.M?'FLM':'FLA';
+    const lv=P.h/P.tw,lpv=1.10*raiz(5),lrv=1.37*raiz(5),Vpl=0.6*P.d*P.tw*fy,VRd=(lv<=lpv?Vpl:lv<=lrv?lpv/lv*Vpl:1.24*(lpv/lv)**2*Vpl)/ga;
+    const qs=(g+pp+q)/100,flecha=5*qs*Lc**4/(384*E*P.Ix),lim=Lc/350;
+    return{P,pp,qd,Msd,Vsd,Mpl,Mr,FLA,FLM,FLT,MRk,MRd,gov,VRd,flecha,lim,okM:Msd<=MRd,okV:Vsd<=VRd,okF:flecha<=lim};
+  },
+  vigaMadeira(cls,b,h,L,s,g,q,k1,k2,k3){
+    const M=MADEIRAS[cls],kmod=k1*k2*k3,fcd=kmod*M.fc/1.4,fvd=kmod*M.fv/1.8,Eef=kmod*M.E,pp=M.rho*0.00981*b*h/1e4;
+    const gl=g*s+pp,ql=q*s,Fd=1.4*(gl+ql),Md=Fd*L*L/8,Vd=Fd*L/2,W=b*h*h/6,I=b*h**3/12;
+    const sig=Md*1000/W,tau=1.5*Vd*1000/(b*h*100),qs=gl+0.2*ql,flecha=5*qs*(L*1000)**4/(384*Eef*I*1e4),lim=L*1000/200;
+    return{kmod,fcd,fvd,Eef,pp,gl,ql,Fd,Md,Vd,W,I,sig,tau,qs,flecha,lim,okM:sig<=fcd,okV:tau<=fvd,okF:flecha<=lim};
+  },
+  reservatorio(pessoas,consumo,dias,rti,recalque,horas,Hutil){
+    const diario=pessoas*consumo,reserva=diario*dias,inf=recalque?0.6*reserva:0,sup=(recalque?0.4*reserva:reserva)+rti,total=reserva+rti;
+    const esc=v=>{const c=CAIXAS.find(x=>x>=v-1e-9);if(c)return{n:1,cap:c};const m=CAIXAS[CAIXAS.length-1];return{n:Math.ceil(v/m-1e-9),cap:m}};
+    const Qlh=diario/horas,Q=Qlh/3.6e6,X=horas/24,Dm=1.3*Math.sqrt(Q)*X**0.25,Dmm=Dm*1000,ir=DN_RECALQUE.findIndex(x=>x>=Dmm-1e-9);
+    const rec=ir>=0?DN_RECALQUE[ir]:null,suc=ir>=0?(DN_RECALQUE[ir+1]||DN_RECALQUE[ir]):null,area=inf/1000/Hutil;
+    return{diario,reserva,inf,sup,total,caixaSup:esc(sup),caixaInf:recalque?esc(inf):null,Qlh,Dmm,rec,suc,area,lado:Math.sqrt(area),tempo:recalque&&Qlh?inf/Qlh:0};
+  },
+  numeroN(vdm,anos,taxa,fv,fr){let s=0;for(let i=0;i<anos;i++)s+=vdm*(1+taxa/100)**i;return 365*s*fv*fr},
+  espessuraH(N,cbr){return 77.67*N**0.0482*cbr**-0.598},
+  pavimento(N,cbrSub,cbrRef){
+    const H=cbr=>calc.espessuraH(N,cbr),up=v=>Math.ceil(v-1e-9);
+    let R,tipo;if(N<=1e6){R=0;tipo='Tratamento superficial betuminoso'}else if(N<=5e6){R=5;tipo='Revestimento betuminoso com 5,0 cm'}else if(N<=1e7){R=7.5;tipo='Concreto betuminoso com 7,5 cm'}else if(N<=5e7){R=10;tipo='Concreto betuminoso com 10,0 cm'}else{R=12.5;tipo='Concreto betuminoso com 12,5 cm'}
+    const KR=2,K=1,Hm=H(cbrSub),H20=H(20),temRef=cbrRef!=null&&cbrRef>cbrSub&&cbrRef<20,Hn=temRef?H(cbrRef):null;
+    const B=Math.max(15,up((H20-R*KR)/K));
+    let h20,hn=0;
+    if(temRef){h20=Math.max(0,up((Hn-R*KR-B*K)/K));hn=Math.max(0,up((Hm-R*KR-B*K-h20*K)/K))}
+    else h20=Math.max(0,up((Hm-R*KR-B*K)/K));
+    return{R,tipo,KR,Hm,H20,Hn,B,h20,hn,total:R+B+h20+hn,temRef};
   },
   orcamento(itens,bdi,qtd){
     const linhas=itens.map(i=>({...i,sub:i.coef*i.preco})),cu=linhas.reduce((s,l)=>s+l.sub,0),pu=cu*(1+bdi/100);

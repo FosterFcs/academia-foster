@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.1.0';
+const VERSAO_APP='1.2.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -21,6 +21,9 @@ const sel=(id,label,opts,hint='')=>`<div class="campo"><label for="${id}">${labe
 const tiles=arr=>`<div class="result">${arr.map(([l,v,d])=>`<div class="res${d?' destaque':''}"><span>${l}</span><b>${v}</b></div>`).join('')}</div>`;
 const V_=id=>+$(id).value;
 const T_=(t,x,y)=>T(x,y,t,'muted','font-size="10" letter-spacing="1"');
+// Barras de aproveitamento (solicitação ÷ resistência) usadas nas verificações
+function usoBarras(itens,x,y,w=260){let s='';itens.forEach(([nome,uso,txt],i)=>{const yy=y+i*58,p=Math.min(uso,1),c=uso>1?'neg':uso>0.85?'amber':'pos';
+  s+=T(x,yy,nome,'ink','font-weight="600" font-size="11"')+`<rect x="${x}" y="${yy+8}" width="${w}" height="12" style="fill:var(--grid)"/><rect x="${x}" y="${yy+8}" width="${w*p}" height="12" style="fill:var(--${c})"/>`+T(x,yy+34,txt+' · '+br(100*uso,0)+'%'+(uso>1?' · NÃO ATENDE':''),uso>1?'neg':'muted','font-size="10"')});return s}
 function outs(){document.querySelectorAll('.ctrl input[type=range]').forEach(i=>{const o=$('o_'+i.id);if(o)o.textContent=br(+i.value,dec(i.step))+' '+i.dataset.unit})}
 const simWrap=(ctrl,extraCtrl='')=>`<div class="sim"><div class="ctrl">${ctrl}<div id="tiles"></div>${extraCtrl}</div><div class="draw" id="draw"></div></div><h3>Memorial de cálculo</h3><div class="memorial" id="memorial"></div>`;
 

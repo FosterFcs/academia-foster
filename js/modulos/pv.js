@@ -1,0 +1,36 @@
+// PV-20 · Pavimentação
+Academia.modulo('pv',{
+teoria:`<p>O pavimento é um "sanduíche" de camadas. Cada uma espalha a carga dos pneus para a de baixo, até que o solo natural (subleito) receba uma pressão que ele aguenta. Quanto mais fraco o solo e mais pesado o tráfego, mais espesso o pavimento.</p>
+<div class="cols"><div class="conceito"><h4>CBR</h4><p>Índice de Suporte Califórnia: a resistência do solo comparada a uma brita padrão. Solo com CBR 5 é fraco; brita graduada passa de 80.</p></div>
+<div class="conceito"><h4>Número N</h4><p>Quantas vezes o eixo padrão de 8,2 toneladas vai passar pela pista durante a vida útil do projeto.</p></div>
+<div class="conceito"><h4>Camadas</h4><p>Revestimento asfáltico, base, sub-base e, se o subleito for muito fraco, reforço do subleito.</p></div></div>
+<h3>Método do DNIT (antigo DNER, Souza 1981)</h3>
+<div class="formula">Espessura total equivalente: H = 77,67 · N^0,0482 · CBR^−0,598   (cm, em material granular)</div>
+<div class="formula">Revestimento pelo N: até 10⁶ tratamento superficial · até 5×10⁶ 5 cm · até 10⁷ 7,5 cm · até 5×10⁷ 10 cm · acima 12,5 cm</div>
+<div class="formula">R·KR + B ≥ H20     R·KR + B + h20 ≥ Hn     R·KR + B + h20 + hn ≥ Hm     (KR = 2,0 para concreto asfáltico)</div>
+<div class="formula">N = 365 × Σ VDM × FV × FR     (FV: fator de veículo · FR: fator climático)</div>
+<div class="dica"><b>Qualidade dos materiais</b>A sub-base precisa de CBR ≥ 20 e a base de CBR ≥ 80 (ou ≥ 60 para N até 5×10⁶). Sem compactação na umidade ótima, nenhuma espessura resolve.</div>`,
+exemplo:`<h3>Rua de bairro com N = 3 × 10⁶ e subleito com CBR 6</h3>
+<ol class="passos"><li><b>Revestimento.</b> N entre 10⁶ e 5×10⁶: <b>5 cm</b> de concreto asfáltico, KR = 2,0, valendo 10 cm de material granular.</li>
+<li><b>Proteção da sub-base (CBR 20).</b> H20 = 77,67 × (3×10⁶)^0,0482 × 20^−0,598 = <b>26,6 cm</b>. Base: B ≥ 26,6 − 10 = 16,6 → <b>17 cm</b>.</li>
+<li><b>Proteção do subleito (CBR 6).</b> Hm = <b>54,6 cm</b>. Sub-base: h20 ≥ 54,6 − 10 − 17 = 27,6 → <b>28 cm</b>.</li>
+<li><b>Estrutura final.</b> 5 cm de CBUQ + 17 cm de base + 28 cm de sub-base = <b>50 cm</b> de pavimento.</li>
+<li><b>Leitura.</b> Se o subleito tivesse CBR 10, a sub-base cairia para menos da metade. Melhorar o solo da base costuma ser a economia mais barata.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+sim:{html:()=>simWrap(sel('pvM','Como informar o tráfego',[['n','Número N direto',1],['v','Calcular pelo volume de veículos']])+`<div id="pvNbox">${rng('pvN','N (expoente)',5,8,0.01,6.48,'','N = 10 elevado a este valor (6,48 ≈ 3 × 10⁶)')}</div><div id="pvVbox" hidden>${rng('pvV','Veículos comerciais por dia (VDM)',10,5000,10,800,'')}${rng('pvA','Período de projeto',5,20,1,10,'anos')}${rng('pvT','Crescimento do tráfego',0,8,0.5,3,'% ao ano')}${rng('pvF','Fator de veículo FV',0.5,6,0.1,2.5,'')}${sel('pvS','Faixa de projeto',[[0.5,'Pista de mão dupla (50%)',1],[1,'Faixa única (100%)']])}</div>`+rng('pvC','CBR do subleito',2,19,1,6,'%')+rng('pvR','CBR do reforço (0 = sem reforço)',0,19,1,0,'%','Use quando o subleito for muito fraco')),
+init(){const t=()=>{const v=$('pvM').value==='v';$('pvNbox').hidden=v;$('pvVbox').hidden=!v};$('pvM').addEventListener('input',t);t()},
+update(){const porV=$('pvM').value==='v',N=porV?calc.numeroN(V_('pvV'),V_('pvA'),V_('pvT'),V_('pvF'),+$('pvS').value):10**V_('pvN'),cr=V_('pvR')>V_('pvC')?V_('pvR'):null,r=calc.pavimento(N,V_('pvC'),cr);
+  const ne=x=>{const e=Math.floor(Math.log10(x));return br(x/10**e,1)+' × 10^'+e};
+  $('tiles').innerHTML=tiles([['Número N',ne(N)],['Revestimento',r.R?br(r.R,1)+' cm':'trat. superficial'],['Base / sub-base',r.B+' / '+r.h20+' cm',1],['Pavimento total',br(r.total,1)+' cm',1]])+(cr==null&&V_('pvR')>0?'<span class="pill alerta">O reforço precisa ter CBR maior que o subleito</span>':'');
+  const cam=[['Revestimento',r.R||1.5,'ink',r.R?br(r.R,1)+' cm':'tratamento superficial'],['Base (CBR ≥ 80)',r.B,'amber',r.B+' cm'],['Sub-base (CBR ≥ 20)',r.h20,'soil',r.h20+' cm']];if(r.hn)cam.push(['Reforço (CBR '+cr+')',r.hn,'steel',r.hn+' cm']);
+  const tot=cam.reduce((a,c)=>a+c[1],0),sc=Math.min(4.5,260/tot);let y=40,s=T_('SEÇÃO DO PAVIMENTO',30,18);
+  cam.forEach(([n,e,c,t])=>{const hh=Math.max(6,e*sc);s+=`<rect x="60" y="${y}" width="260" height="${hh}" style="fill:var(--${c});opacity:${c==='ink'?.85:.5};stroke:var(--line)"/>`+T(332,y+hh/2+4,n+' · '+t,'ink','font-size="11"');y+=hh});
+  s+=`<rect x="60" y="${y}" width="260" height="40" style="fill:var(--soil-fill)"/>`+T(332,y+22,'Subleito (CBR '+V_('pvC')+')','ink','font-size="11"');for(let i=0;i<7;i++)s+=Ln(70+i*38,y+30,82+i*38,y+18,'soil',1);
+  s+=Ln(48,40,48,y,'muted')+T(42,(40+y)/2,br(r.total,0)+' cm','muted','text-anchor="end" font-size="10"');
+  $('draw').innerHTML=SVG(640,y+56,'Seção das camadas do pavimento',s);
+  $('memorial').textContent=`${porV?`N = 365 × Σ VDM(1 + ${br(V_('pvT'),1)}%)^i × FV ${br(V_('pvF'),1)} × faixa ${+$('pvS').value*100}% em ${V_('pvA')} anos = ${ne(N)}\n`:''}1) N = ${ne(N)} → ${r.tipo}${r.R?` (R = ${br(r.R,1)} cm, KR = 2,0)`:' (sem contribuição estrutural)'}
+2) H20 = 77,67 × N^0,0482 × 20^−0,598 = ${br(r.H20,1)} cm → B ≥ ${br(r.H20,1)} − ${br(r.R*r.KR,1)} = ${br(r.H20-r.R*r.KR,1)} → B = ${r.B} cm (mínimo 15)
+${r.temRef?`3) Hn (CBR ${cr}) = ${br(r.Hn,1)} cm → h20 ≥ ${br(r.Hn,1)} − ${br(r.R*r.KR,1)} − ${r.B} → h20 = ${r.h20} cm
+4) Hm (CBR ${V_('pvC')}) = ${br(r.Hm,1)} cm → reforço ≥ ${br(r.Hm,1)} − ${br(r.R*r.KR+r.B+r.h20,1)} → hn = ${r.hn} cm`:`3) Hm (CBR ${V_('pvC')}) = ${br(r.Hm,1)} cm → h20 ≥ ${br(r.Hm,1)} − ${br(r.R*r.KR,1)} − ${r.B} → h20 = ${r.h20} cm`}
+Total: ${br(r.total,1)} cm · Base e sub-base consideradas granulares (K = 1,0).`;}}
+});
