@@ -1,8 +1,8 @@
 // Service worker da Academia Foster de Engenharia.
 // IMPORTANTE: a cada publicação, aumente VERSAO. É isso que faz os aparelhos baixarem a versão nova.
-const VERSAO='af-1.5.2';
+const VERSAO='af-1.6.0';
 importScripts('js/catalogo.js');
-const ARQUIVOS=['./','index.html','css/app.css','js/calc.js','js/core.js','js/conta.js','js/catalogo.js','js/sig.js','manifest.webmanifest',
+const ARQUIVOS=['./','index.html','css/app.css','js/calc.js','js/core.js','js/conta.js','js/certificado.js','validar.html','js/catalogo.js','js/sig.js','manifest.webmanifest',
   'icons/icone-192.png','icons/icone-512.png','icons/icone-mascara-512.png','icons/apple-touch-icon.png','icons/favicon-32.png']
   .concat(CATALOGO.map(m=>'js/modulos/'+m.id+'.js'));
 const MAPAS='af-mapas',FONTES='af-fontes',LIMITE_MAPAS=400;

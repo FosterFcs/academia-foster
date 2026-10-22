@@ -15,6 +15,8 @@ python3 testes/interface.py
 python3 testes/bancada_sig.py
 python3 testes/pwa.py
 python3 testes/conta.py
+python3 testes/certificacao_banco.py
+python3 testes/certificacao.py
 python3 testes/interface.py --arquivo
 python3 testes/bancada_sig.py --arquivo
 echo "Tudo certo."

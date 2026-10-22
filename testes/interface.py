@@ -28,7 +28,7 @@ with sync_playwright() as p:
         for m in mods:
             if m in('sim','inicio'): continue
             go(m)
-            for tab in ['teoria','exemplo','sim','obra','quiz']:
+            for tab in ['teoria','exemplo','sim','obra','quiz','cert']:
                 pg.click(f'.tab[data-k="{tab}"]')
                 ok(len(pg.inner_text('#painel'))>200,f'{w} {m}/{tab} vazio')
                 if tab=='exemplo':

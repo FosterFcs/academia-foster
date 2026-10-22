@@ -3,7 +3,7 @@ Responde com os mesmos formatos e códigos do Supabase real e aplica a mesma reg
 import json,uuid,time,threading,http.server,socketserver,urllib.parse
 CHAVE='sb_publishable_VT3XEbInyTr2Eu-AuLnrqw_BOrA2jYy'
 class Estado:
-    def __init__(s):s.users={};s.tokens={};s.refresh={};s.linhas={};s.confirmar=False;s.expira=3600;s.chamadas=[];s.recuperacoes=[];s.lock=threading.Lock()
+    def __init__(s):s.users={};s.tokens={};s.refresh={};s.linhas={};s.confirmar=False;s.expira=3600;s.chamadas=[];s.recuperacoes=[];s.pg=None;s.lock=threading.Lock()
 E=Estado()
 def sessao(u):
     at=uuid.uuid4().hex;rt=uuid.uuid4().hex;E.tokens[at]=(u['id'],time.time()+E.expira);E.refresh[rt]=u['id']
@@ -32,6 +32,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 if len(b['password'])<6:return s.erro(422,'weak_password','Password should be at least 6 characters.')
                 us={'id':str(uuid.uuid4()),'email':email,'senha':b['password'],'meta':b.get('data') or {},'confirmado':None if E.confirmar else 'agora','redirect':q.get('redirect_to',[''])[0]}
                 E.users[us['id']]=us
+                if E.pg:E.pg.execute('insert into auth.users(id,email) values(%s,%s) on conflict do nothing',(us['id'],email))
                 return s.resp(200,publico(us) if E.confirmar else sessao(us))
             if p=='/auth/v1/token' and m=='POST':
                 b=s.corpo();g=q.get('grant_type',[''])[0]
@@ -56,6 +57,7 @@ class H(http.server.BaseHTTPRequestHandler):
                 return s.resp(200,publico(E.users[i]))
             if p=='/auth/v1/logout':
                 a=(s.headers.get('Authorization') or '').replace('Bearer ','');E.tokens.pop(a,None);return s.resp(204)
+            if p.startswith('/rest/v1/rpc/') and m=='POST' and E.pg:return s.rpc(p.rsplit('/',1)[1],i,s.corpo() or {})
             if p=='/rest/v1/acad_dados':
                 if not i:return s.resp(401,{'code':'PGRST301','message':'JWT expired'} if s.headers.get('Authorization') else {'code':'42501','message':'permission denied for table acad_dados'})
                 if m=='GET':return s.resp(200,[{'chave':k[1],'dados':v['dados'],'atualizado_em':v['em']} for k,v in E.linhas.items() if k[0]==i])
@@ -71,6 +73,25 @@ class H(http.server.BaseHTTPRequestHandler):
                     for k in [k for k in E.linhas if k[0]==i and k[0]==alvo]:del E.linhas[k]
                     return s.resp(204)
         s.resp(404,{'message':'not found'})
+    def rpc(s,fn,i,args):
+        """Executa a função de verdade no PostgreSQL local, como o PostgREST: papel e claims do JWT."""
+        import psycopg
+        c=E.pg;tem_auth=bool(s.headers.get('Authorization'))
+        if tem_auth and not i:return s.resp(401,{'code':'PGRST301','message':'JWT expired'})
+        try:
+            c.execute('reset role')
+            if i:c.execute("select set_config('request.jwt.claims',%s,false)",(json.dumps({'sub':i,'email':E.users[i]['email'],'role':'authenticated'}),));c.execute('set role authenticated')
+            else:c.execute("select set_config('request.jwt.claims','',false)");c.execute('set role anon')
+            nomes=list(args.keys());sql=f"select public.{fn}("+','.join(f'{k}=>%s' for k in nomes)+')'
+            vals=[json.dumps(v) if isinstance(v,(dict,)) else v for v in args.values()]
+            r=c.execute(sql,vals).fetchone()[0];b=json.dumps(r).encode()
+            s.send_response(200);s.cors();s.send_header('Content-Type','application/json');s.send_header('Content-Length',str(len(b)));s.end_headers();s.wfile.write(b);return
+        except psycopg.Error as e:
+            cod=e.sqlstate or 'P0001';st={'42501':401 if not i else 403,'42883':404,'28000':401}.get(cod,400)
+            return s.resp(st,{'code':cod,'message':e.diag.message_primary,'details':None,'hint':None})
+        finally:
+            try:c.execute('reset role')
+            except Exception:pass
     def do_GET(s):s.rota('GET')
     def do_POST(s):s.rota('POST')
     def do_PUT(s):s.rota('PUT')

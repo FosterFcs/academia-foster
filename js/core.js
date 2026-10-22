@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.5.2';
+const VERSAO_APP='1.6.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -68,7 +68,7 @@ function trilha(){
 }
 function renderInicio(){
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">Início · ${MODS.length} disciplinas em ${AREAS.length} áreas</span><h2>O que você quer aprender hoje?</h2></div>
-  <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, três exemplos resolvidos (do básico ao caso de obra), simulador com desenho e memorial de cálculo, a aba <b>Na obra</b> com erros comuns e checklist de fiscalização, e um quiz de 15 questões. No fim, teste tudo no simulado geral.</p>
+  <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, três exemplos resolvidos (do básico ao caso de obra), simulador com desenho e memorial de cálculo, a aba <b>Na obra</b> com erros comuns e checklist de fiscalização, um quiz de 15 questões e certificado de 4 horas para quem passar na prova. No fim, teste tudo no simulado geral.</p>
   <div class="areas">${AREAS.map(([n,ids])=>`<div class="area"><h3>${n}</h3>${ids.map(id=>{const m=modById(id);return `<button class="card-mod" data-m="${id}"><span class="cod">${m.cod}</span><b>${m.nome}</b>${tagMod(m)}<small>${m.titulo}</small></button>`}).join('')}</div>`).join('')}</div>
   <h3>Próximas disciplinas</h3><div class="presets">${PROX.map(p=>`<span class="chip off">${p}</span>`).join('')}</div>
   <div><button class="btn" data-m="sim">Fazer o simulado geral</button></div></section>`;
@@ -82,7 +82,7 @@ function render(){
   const m=modById(st.mod);
   if(!m){st.mod='inicio';return render()}
   if(!m.carregado)return renderCarregando(m);
-  const tabs=[['teoria','Teoria'],['exemplo',m.exemplos&&m.exemplos.length?'Exemplos':'Exemplo'],['sim','Simulador']];if(m.sig)tabs.push(['sig','Bancada SIG']);if(m.obra)tabs.push(['obra','Na obra']);tabs.push(['quiz','Quiz']);if(!tabs.some(t=>t[0]===st.tab))st.tab='teoria';
+  const tabs=[['teoria','Teoria'],['exemplo',m.exemplos&&m.exemplos.length?'Exemplos':'Exemplo'],['sim','Simulador']];if(m.sig)tabs.push(['sig','Bancada SIG']);if(m.obra)tabs.push(['obra','Na obra']);tabs.push(['quiz','Quiz']);if(typeof Cert!=='undefined')tabs.push(['cert','Certificado']);if(!tabs.some(t=>t[0]===st.tab))st.tab='teoria';
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">${m.eyebrow}</span><h2>${m.titulo}</h2></div>
   <div class="tabs" role="tablist">${tabs.map(([k,t],i)=>`<button class="tab" role="tab" id="t-${k}" aria-selected="${st.tab===k}" aria-controls="painel" data-k="${k}"><span class="n">${i+1}</span>${t}</button>`).join('')}</div>
   <section class="painel" id="painel" role="tabpanel" aria-labelledby="t-${st.tab}"></section>`;
@@ -97,6 +97,7 @@ function render(){
     if(s.init)s.init();
     p.querySelectorAll('.ctrl input[type=range],.ctrl select').forEach(i=>i.addEventListener('input',()=>{outs();s.update()}));outs();s.update();}
   else if(st.tab==='sig'&&m.sig){p.innerHTML=m.sig.html();m.sig.init()}
+  else if(st.tab==='cert'&&typeof Cert!=='undefined')Cert.render(m,p);
   else renderQuiz(m,p);
   const ir=$('irSim');if(ir)ir.onclick=()=>{st.tab='sim';render()};
 }

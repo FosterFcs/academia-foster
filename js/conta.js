@@ -26,7 +26,7 @@ const Conta={
     const ab=typeof AbortController!=='undefined'?new AbortController():null,lim=setTimeout(()=>ab&&ab.abort(),15000);
     let r;try{r=await fetch(this.cfg.url+caminho,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),signal:ab?ab.signal:undefined})}catch(e){const x=new Error('Sem conexão com a internet. Tente de novo quando a conexão voltar.');x.rede=true;throw x}finally{clearTimeout(lim)}
     const t=await r.text();let j=null;try{j=t?JSON.parse(t):null}catch(e){}
-    if(!r.ok){const x=new Error(this.traduzir(j,r.status));x.status=r.status;throw x}
+    if(!r.ok){const x=new Error(this.traduzir(j,r.status));x.status=r.status;x.raw=(j&&(j.message||j.msg))||'';throw x}
     return j;
   },
   traduzir(j,st){
@@ -134,10 +134,11 @@ const Conta={
       corpo=`${tiles([['Disciplinas concluídas',feitos+' de '+MODS.length],['Simulados feitos',sims],['Situação',est,1],['Última sincronização',this.quando(this.meta.ultimo)]])}${msg}
         <div class="presets"><button class="btn" id="ctSync">Sincronizar agora</button><button class="btn sec" id="ctSair">${this.confirmaSair?(pend?'Sair mesmo assim? '+pend+' alteração(ões) não enviada(s)':'Confirmar saída'):'Sair'}</button></div>
         <p class="nota">Ao sair, o progresso é removido deste aparelho e continua guardado na sua conta. Entre de novo em qualquer celular ou computador para continuar de onde parou.</p>
-        <h3>Seus dados</h3><p class="nota">Guardamos seu nome, seu e-mail, as respostas dos quizzes, o histórico de simulados e o projeto da Bancada SIG, só para sincronizar entre aparelhos. Ninguém além de você vê esses dados. A mesma conta vale para os outros apps Foster.</p>
+        <h3>Seus dados</h3><p class="nota">Guardamos seu nome, seu e-mail, as respostas dos quizzes, o histórico de simulados e o projeto da Bancada SIG, só para sincronizar entre aparelhos. Se você pedir um certificado, guardamos também o nome completo e o CPF informados nele. Ninguém além de você vê esses dados. A mesma conta vale para os outros apps Foster.</p>
         <div class="presets"><button class="chip" id="ctApagar">${this.confirmaApagar?'Confirmar: apagar meus dados de estudo da nuvem':'Apagar meus dados de estudo da nuvem'}</button></div>
         <p class="nota">Para excluir a conta inteira, escreva para comercial@fosterconstrucoes.com.br a partir do e-mail cadastrado.</p>`;
       M.innerHTML=`<div class="mod-head"><span class="eyebrow">Minha conta</span><h2>Olá, ${esc(this.nome.split(' ')[0])}</h2></div><section class="painel">${corpo}</section>`;
+      if(typeof Cert!=='undefined')Cert.painelConta(M.querySelector('.painel'));
       $('ctSync').onclick=async()=>{this.msg='';try{await this.baixar();this.msg='Sincronizado.';this.msgOk=true}catch(e){this.msg=e.message;this.msgOk=false}this.render()};
       $('ctSair').onclick=async()=>{if(!this.confirmaSair){this.confirmaSair=true;return this.render()}await this.sair();this.msg='Você saiu da conta.';this.msgOk=true;this.topo();render()};
       $('ctApagar').onclick=async()=>{if(!this.confirmaApagar){this.confirmaApagar=true;return this.render()}this.confirmaApagar=false;try{await this.apagarDados();this.msg='Dados de estudo apagados da nuvem. O que está neste aparelho continua aqui.';this.msgOk=true}catch(e){this.msg=e.message;this.msgOk=false}this.render()};

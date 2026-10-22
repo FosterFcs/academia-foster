@@ -102,3 +102,12 @@ O app funciona sem conta. Com conta, o progresso dos quizzes, o histórico de si
 Conteúdo didático. Os simuladores seguem as normas ABNT citadas em cada disciplina, mas não substituem projeto assinado por profissional habilitado. Confira as tabelas com a edição vigente de cada norma antes de uso profissional.
 
 Foster Engenharia & Construção · comercial@fosterconstrucoes.com.br
+
+## Certificação
+
+Cada disciplina tem a aba **Certificado**: o aluno estuda, conclui o quiz e faz uma prova de 10 questões sorteadas, com 30 minutos, nota mínima 7 e 2 tentativas a cada 24 horas. A correção é feita no Supabase, e o gabarito nunca chega ao navegador. Aprovado, ele informa nome e CPF e paga R$ 9,90 por Pix. O instrutor confirma o pagamento na página **Minha conta** e o certificado de 4 horas fica disponível em `validar.html?c=CODIGO`, com QR code e CPF parcialmente oculto.
+
+- Estrutura do banco: `supabase/certificacao.sql`. O banco de questões da prova fica só no Supabase, fora deste repositório.
+- Configuração (SQL Editor do Supabase): `update acad_config set valor='...' where chave in ('preco','pix_nome','pix_cidade','contato');` e, para o Pix, `insert into acad_config values ('pix_chave','SUA-CHAVE') on conflict (chave) do update set valor=excluded.valor;`
+- Quem confirma pagamentos: e-mails na tabela `acad_admins`.
+- Testes: `testes/certificacao_banco.py` (regras no PostgreSQL local) e `testes/certificacao.py` (fluxo completo na interface).
