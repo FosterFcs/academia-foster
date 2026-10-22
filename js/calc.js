@@ -264,6 +264,54 @@ const calc={
     const Vass=A*(1-nb*c*a/1e4)*e/100*1.1,Vreb=A*faces*reboco/100*1.1,Vch=A*faces*0.005*1.1,Vtot=Vass+Vreb;
     const [ci,ca,ar]=traco,cim=Vtot*ci/ar*1420+Vch*1/3*1420,cal=Vtot*ca/ar*600,areia=Vtot+Vch*1;
     return{A,nb,blocos,Vass,Vreb,Vch,cim,cal,areia,sacosC:Math.ceil(cim/50),sacosCal:Math.ceil(cal/20)};
-  }
+  },
+  // ===== Fase 3 =====
+  // Sistema linear por eliminação de Gauss com pivoteamento parcial
+  resolver(A,b){const n=b.length,M=A.map((r,i)=>[...r,b[i]]);
+    for(let c=0;c<n;c++){let p=c;for(let r=c+1;r<n;r++)if(Math.abs(M[r][c])>Math.abs(M[p][c]))p=r;if(Math.abs(M[p][c])<1e-12)return null;[M[c],M[p]]=[M[p],M[c]];
+      for(let r=0;r<n;r++)if(r!==c){const k=M[r][c]/M[c][c];if(k)for(let j=c;j<=n;j++)M[r][j]-=k*M[c][j]}}
+    return M.map((r,i)=>r[n]/r[i])},
+  // Treliça plana de banzos paralelos (Pratt ou Howe), apoio fixo à esquerda e móvel à direita.
+  trelica(L,H,n,tipo,P,banzo='sup'){
+    const nos=[],barras=[];for(let i=0;i<=n;i++)nos.push({x:i*L/n,y:0});for(let i=0;i<=n;i++)nos.push({x:i*L/n,y:H});
+    const b=i=>i,t=i=>n+1+i,add=(a,c,g)=>barras.push({a,c,g});
+    for(let i=0;i<n;i++){add(b(i),b(i+1),'inferior');add(t(i),t(i+1),'superior')}
+    for(let i=0;i<=n;i++)add(b(i),t(i),'montante');
+    for(let i=0;i<n;i++){const esq=i<n/2,pr=tipo==='pratt';add(esq===pr?t(i):b(i),esq===pr?b(i+1):t(i+1),'diagonal')}
+    const J=nos.length,m=barras.length,A=Array.from({length:2*J},()=>Array(m+3).fill(0)),F=Array(2*J).fill(0);
+    barras.forEach((e,k)=>{const p=nos[e.a],q=nos[e.c],l=Math.hypot(q.x-p.x,q.y-p.y),cx=(q.x-p.x)/l,cy=(q.y-p.y)/l;e.l=l;A[2*e.a][k]+=cx;A[2*e.a+1][k]+=cy;A[2*e.c][k]-=cx;A[2*e.c+1][k]-=cy});
+    A[2*b(0)][m]=1;A[2*b(0)+1][m+1]=1;A[2*b(n)+1][m+2]=1;
+    const carga=i=>(i===0||i===n?P/2:P),noC=banzo==='sup'?t:b;for(let i=0;i<=n;i++)F[2*noC(i)+1]+=carga(i);
+    const x=calc.resolver(A,F);if(!x)return null;barras.forEach((e,k)=>e.N=Math.abs(x[k])<1e-9?0:x[k]);
+    const maxT=Math.max(0,...barras.map(e=>e.N)),maxC=Math.min(0,...barras.map(e=>e.N));
+    return{nos,barras,Rx:x[m],Ra:x[m+1],Rb:x[m+2],W:n*P,maxT,maxC};
+  },
+  // Ligação parafusada por cisalhamento (NBR 8800): parafuso x chapa
+  PARAFUSOS:{'ASTM A307':415,'ASTM A325':825},
+  ligacao(Fd,db,tipoP,planos,rosca,t,fu,n){
+    const Ab=Math.PI*(db/10)**2/4,fub=calc.PARAFUSOS[tipoP]/10,fuc=fu/10,Fv=(rosca?0.4:0.5)*Ab*fub/1.35*planos,Fc=2.4*(db/10)*(t/10)*fuc/1.35,F1=Math.min(Fv,Fc);
+    const nec=Math.max(2,Math.ceil(Fd/F1-1e-9));return{Ab,fub,Fv,Fc,F1,gov:Fv<=Fc?'cisalhamento do parafuso':'pressão de contato na chapa',nec,Rd:n*F1,ok:n*F1>=Fd,s:3*db,e:1.75*db};
+  },
+  // Recalque imediato de sapata (teoria da elasticidade, Es pelo SPT de Teixeira e Godoy)
+  SOLOS_ES:{'Areia com pedregulho':[1.1,3],'Areia':[0.9,3],'Areia siltosa':[0.7,3],'Areia argilosa':[0.55,3],'Silte arenoso':[0.45,5],'Silte':[0.35,5],'Argila arenosa':[0.3,7],'Silte argiloso':[0.25,7],'Argila siltosa':[0.2,7]},
+  recalque(N,B,L,nspt,solo,nu,rigida){
+    const [K,a]=calc.SOLOS_ES[solo],Es=a*K*nspt,sig=1.05*N/(B*L),r=L/B,Ir=rigida?(r<=1?0.82:r>=2?1.12:0.82+(r-1)*0.30):(r<=1?0.95:r>=2?1.30:0.95+(r-1)*0.35);
+    const rho=sig*B*(1-nu*nu)*Ir/(Es*1000)*1000;return{K,a,Es,sig,Ir,rho,ok:rho<=25};
+  },
+  // Cronograma físico-financeiro: custo distribuído por igual ao longo de cada atividade, em meses de 30 dias
+  fisicoFinanceiro(ts){const c=calc.cpm(ts.map(t=>({id:t.id,dur:t.dur,pred:t.pred})));if(c.erro)return c;
+    const prazo=c.total,meses=Math.ceil(prazo/30),total=ts.reduce((s,t)=>s+t.custo,0),mes=Array(meses).fill(0);
+    ts.forEach(t=>{const ini=c.ES[t.id],fim=c.EF[t.id],pd=t.custo/t.dur;for(let k=0;k<meses;k++){const s=Math.max(ini,30*k),e=Math.min(fim,30*(k+1));if(e>s)mes[k]+=pd*(e-s)}});
+    let ac=0;const acum=mes.map(v=>ac+=v);return{cpm:c,prazo,meses,total,mes,acum,pct:acum.map(v=>100*v/total)};
+  },
+  // Nivelamento geométrico: altura do instrumento e erro de fechamento (NBR 13133)
+  nivelamento(cota0,lances,km,classe){
+    let cota=cota0;const pts=[{cota}];lances.forEach(([re,vante])=>{const ai=cota+re;cota=ai-vante;pts.push({re,vante,ai,cota})});
+    const erro=(cota-cota0)*1000,tol=(classe==='IN'?12:20)*Math.sqrt(Math.max(km,1e-9));return{pts,erro,tol,ok:Math.abs(erro)<=tol,soma:lances.reduce((s,[r,v])=>s+r-v,0)};
+  },
+  // Microdrenagem: método racional + galeria circular a seção plena (Manning)
+  racional(C,i,Aha){return C*i*Aha/360},
+  galeria(Q,S,n=0.013){const D=(Q*n/(0.3117*Math.sqrt(S)))**(3/8),DN=[0.4,0.5,0.6,0.8,1.0,1.2,1.5,2.0].find(d=>d>=D)||null;
+    const Qp=DN?0.3117*DN**(8/3)*Math.sqrt(S)/n:0,v=DN?Qp/(Math.PI*DN*DN/4):0;return{D,DN,Qp,v,ok:!!DN&&v>=0.6&&v<=5}}
 };
 // CALC-END

@@ -17,6 +17,7 @@ for(const m of CAT.CATALOGO){const o=mods[m.id];ok(o,'módulo carregado '+m.id);
   ok(ob&&ob.erros.length>=4&&ob.erros.every(e=>e.length===2&&e[0].length>5&&e[1].length>20),m.id+': erros comuns');
   ok(ob&&ob.checklist.length>=6&&new Set(ob.checklist).size===ob.checklist.length,m.id+': checklist');
   ok(ob&&ob.dica&&ob.dica.length>40,m.id+': dica de obra');
+  ok((o.teoria.match(/<figure class="fig">/g)||[]).length===1&&/<figcaption>.{10,}<\/figcaption>/.test(o.teoria),m.id+': figura na teoria');
   ok(m.quiz.length===15,m.id+': 15 questões ('+m.quiz.length+')');
   const ps=new Set();m.quiz.forEach((q,i)=>{ok(q.o.length>=2&&q.c>=0&&q.c<q.o.length,m.id+' gabarito '+i);ok(new Set(q.o).size===q.o.length,m.id+' opções repetidas '+i);ok(q.e&&q.e.length>15,m.id+' explicação '+i);ok(!ps.has(q.p),m.id+' pergunta repetida '+i);ps.add(q.p)});
 }

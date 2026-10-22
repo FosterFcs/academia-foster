@@ -192,3 +192,8 @@ p.pill{margin:0;display:block;max-width:420px;font-family:var(--f-body);font-wei
 .calc-op{font-family:var(--f-mono);font-size:.75rem;padding:6px 11px;border:1.5px solid var(--line);background:var(--sheet);color:var(--ink);cursor:pointer}
 .calc-op:hover{border-color:var(--steel)}
 .calc-op.on{border-color:var(--ink);background:var(--ink);color:var(--sheet);font-weight:600}
+
+/* figuras da teoria */
+.fig{margin:18px 0;padding:14px;border:1px solid var(--line);background:var(--sheet)}
+.fig svg{width:100%;max-width:640px;height:auto;display:block;margin:0 auto}
+.fig figcaption{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);margin-top:8px;text-align:center}

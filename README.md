@@ -71,6 +71,8 @@ python3 -m playwright install chromium
 sh testes/rodar-todos.sh
 ```
 
+Doze disciplinas têm uma segunda calculadora no Simulador (estribos, momentos de laje, pré-dimensionamento de pilar, fossa e sumidouro, dosagem ABCP, quantitativo de parede, treliça, ligação parafusada, recalque, físico-financeiro com curva S, nivelamento geométrico e microdrenagem), e toda teoria tem uma figura explicativa.
+
 Os testes cobrem o conteúdo de cada disciplina (3 exemplos, aba "Na obra" com erros comuns e checklist, banco de 15 questões, com os números dos exemplos conferidos contra as calculadoras), os cálculos (comparados com cálculo à mão, com as tabelas de Timoshenko para as lajes, com a biblioteca de referência PROJ para a conversão UTM e com um modelo de fibras para os pilares), a interface de todas as disciplinas no computador e no celular, a Bancada SIG com cliques reais no mapa, o funcionamento offline, a atualização de versão, os downloads e a posição do mapa de fundo.
 
 ## Mapa de fundo

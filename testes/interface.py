@@ -49,7 +49,7 @@ with sync_playwright() as p:
                     ok(pg.is_checked('#painel .checklist input >> nth=0') and f'1 de {nck}' in pg.inner_text('#painel'),f'{w} {m}: marcar checklist')
                 if tab=='sim':
                   ncalc=max(1,len(pg.query_selector_all('#painel .calc-op')))
-                  if m in('ca','lj','pi','eg','mc','or'): ok(ncalc==2,f'{w} {m}: calculadora extra ({ncalc})')
+                  if m in('ca','lj','pi','eg','mc','or','is','ac','gt','pl','tp','ap'): ok(ncalc==2,f'{w} {m}: calculadora extra ({ncalc})')
                   for kc in range(ncalc):
                     if ncalc>1: pg.click(f'#painel [data-calc="{kc}"]');ok(pg.get_attribute(f'#painel [data-calc="{kc}"]','aria-selected')=='true',f'{w} {m}: calc {kc} ativa')
                     ok(pg.query_selector('#draw svg') is not None or m=='ca',f'{w} {m}: sem desenho')
