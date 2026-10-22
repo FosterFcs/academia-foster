@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.5.1';
+const VERSAO_APP='1.5.2';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -169,4 +169,4 @@ function iniciarPWA(){
     setInterval(()=>reg.update().catch(()=>{}),60*60*1000);
   }).catch(()=>{});
 }
-function iniciar(){load();render();if(typeof Conta!=='undefined')Conta.iniciar();iniciarPWA()}
+function iniciar(){const vs=$('versao');if(vs)vs.textContent='Versão '+VERSAO_APP;load();render();if(typeof Conta!=='undefined')Conta.iniciar();iniciarPWA()}

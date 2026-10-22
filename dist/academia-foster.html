@@ -216,7 +216,7 @@ p.pill{margin:0;display:block;max-width:420px;font-family:var(--f-body);font-wei
     <nav class="trilha" aria-label="Disciplinas" id="trilha"></nav>
     <main id="main"></main>
   </div>
-  <footer>Academia Foster de Engenharia · Engenharia civil descomplicada · Foster Engenharia &amp; Construção<br>Conteúdo didático. Não substitui projeto assinado por responsável técnico.</footer>
+  <footer>Academia Foster de Engenharia · Engenharia civil descomplicada · Foster Engenharia &amp; Construção<br>Conteúdo didático. Não substitui projeto assinado por responsável técnico.<br><span id="versao"></span></footer>
 </div>
 <div class="aviso" id="aviso" role="status" hidden></div>
 <script>
@@ -883,7 +883,7 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 ];
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.5.1';
+const VERSAO_APP='1.5.2';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -1053,7 +1053,7 @@ function iniciarPWA(){
     setInterval(()=>reg.update().catch(()=>{}),60*60*1000);
   }).catch(()=>{});
 }
-function iniciar(){load();render();if(typeof Conta!=='undefined')Conta.iniciar();iniciarPWA()}
+function iniciar(){const vs=$('versao');if(vs)vs.textContent='Versão '+VERSAO_APP;load();render();if(typeof Conta!=='undefined')Conta.iniciar();iniciarPWA()}
 
 // Conta do aluno e sincronização com o Supabase (projeto foster-calc, tabela acad_dados).
 // O app continua funcionando sem conta e sem internet: tudo fica salvo no aparelho e sobe para a nuvem quando há conexão.
