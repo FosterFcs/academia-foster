@@ -50,7 +50,7 @@ button,.btn{font:600 .95rem var(--f-body);padding:10px 16px;border:1.5px solid v
 .f-ass .linha{border-top:1.5px solid #1b2a3a;margin:0 0 6px;padding-top:6px;font-weight:700;font-size:.92rem}
 .f-ass span{display:block;color:#4b5866}
 .f-ass .assin{font-family:var(--f-serif);font-style:italic;font-weight:500;font-size:1.9rem;line-height:1;margin:0 0 2px;color:#1b2a3a}
-.f-qr{justify-self:end;text-align:center;font-family:var(--f-mono);font-size:.58rem;line-height:1.35;color:#6b7783;width:190px;word-break:break-all}
+.f-qr{justify-self:end;text-align:center;font-family:var(--f-mono);font-size:.58rem;line-height:1.35;color:#6b7783;width:200px}
 .f-qr svg{width:96px;height:96px;display:block;margin:0 auto 4px}
 .f-data{font-size:.82rem;color:#4b5866}
 .f-legal{font-size:.62rem;color:#6b7783;text-align:center;grid-column:1/-1;margin-top:-4px}
@@ -97,7 +97,7 @@ async function validar(cod){
     <p class="f-prog"><b>Conteúdo programático:</b> ${esc([m.titulo,...tp].filter(Boolean).join(' · '))} · exemplos resolvidos · simulador com memorial de cálculo · erros comuns e checklist de fiscalização · avaliação final com 10 questões.</p>
     <div class="f-pe"><div class="f-data">Emitido em ${dataExtenso(c.emitido_em)}.</div>
       <div class="f-ass"><div class="assin">Wilson Foster</div><div class="linha">Wilson Foster</div><span>José Wilson Pereira · Engenheiro Civil</span><span>CREA-SP 5071894914 · Instrutor responsável</span></div>
-      <div class="f-qr"><div id="qr"></div>Confira em<br>fosterfcs.github.io/<wbr>academia-foster/validar.html</div>
+      <div class="f-qr"><div id="qr"></div>Confira em<br>fosterfcs.github.io<br>/academia-foster/validar.html</div>
       <p class="f-legal">Curso livre de capacitação profissional, oferecido a distância. A aceitação como atividade complementar segue o regulamento de cada instituição de ensino.</p></div>
   </article></div>`;
   $('imprimir').onclick=()=>print();

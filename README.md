@@ -105,9 +105,9 @@ Foster Engenharia & Construção · comercial@fosterconstrucoes.com.br
 
 ## Certificação
 
-Cada disciplina tem a aba **Certificado**: o aluno estuda, conclui o quiz e faz uma prova de 10 questões sorteadas, com 30 minutos, nota mínima 7 e 2 tentativas a cada 24 horas. A correção é feita no Supabase, e o gabarito nunca chega ao navegador. Aprovado, ele informa nome e CPF e paga R$ 9,90 por Pix. O instrutor confirma o pagamento na página **Minha conta** e o certificado de 4 horas fica disponível em `validar.html?c=CODIGO`, com QR code e CPF parcialmente oculto.
+Cada disciplina tem a aba **Certificado**: o aluno estuda, conclui o quiz e faz uma prova de 10 questões sorteadas, com 30 minutos, nota mínima 7 e 2 tentativas a cada 24 horas. A correção é feita no Supabase, e o gabarito nunca chega ao navegador. Aprovado, ele informa nome e CPF. Cada certificado usa 1 crédito, comprado em pacotes por Pix (avulso R$ 4,90; 5 por R$ 19,90; 10 por R$ 34,90; 20 por R$ 59,90). O instrutor confirma o Pix do pacote na página **Minha conta**, os créditos entram e o certificado de 4 horas fica disponível em `validar.html?c=CODIGO`, com QR code e CPF parcialmente oculto.
 
-- Estrutura do banco: `supabase/certificacao.sql`. O banco de questões da prova fica só no Supabase, fora deste repositório.
-- Configuração (SQL Editor do Supabase): `update acad_config set valor='...' where chave in ('preco','pix_nome','pix_cidade','contato');` e, para o Pix, `insert into acad_config values ('pix_chave','SUA-CHAVE') on conflict (chave) do update set valor=excluded.valor;`
+- Estrutura do banco: `supabase/01_certificacao.sql` e `supabase/02_pacotes.sql`. O banco de questões da prova fica só no Supabase, fora deste repositório.
+- Configuração (SQL Editor do Supabase): `update acad_config set valor='...' where chave in ('pacotes','pix_nome','pix_cidade','contato');` (os pacotes ficam em JSON) e, para o Pix, `insert into acad_config values ('pix_chave','SUA-CHAVE') on conflict (chave) do update set valor=excluded.valor;`
 - Quem confirma pagamentos: e-mails na tabela `acad_admins`.
 - Testes: `testes/certificacao_banco.py` (regras no PostgreSQL local) e `testes/certificacao.py` (fluxo completo na interface).

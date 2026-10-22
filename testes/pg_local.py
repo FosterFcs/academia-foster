@@ -27,7 +27,9 @@ def banco(dsn,modulos_completos=('rm','ca'),completos_por=12):
     """Cria um banco novo com a migração e um banco de questões sintético (a certa começa com "certa")."""
     con=psycopg.connect(dsn,autocommit=True);db='af_teste_'+uuid.uuid4().hex[:6];con.execute(f'create database {db}');con.close()
     c=psycopg.connect(dsn.replace('dbname=postgres','dbname='+db),autocommit=True)
-    c.execute(STUB);c.execute(open(os.path.join(RAIZ,'supabase','certificacao.sql')).read())
+    c.execute(STUB)
+    for arq in sorted(os.listdir(os.path.join(RAIZ,'supabase'))):
+        if arq.endswith('.sql'):c.execute(open(os.path.join(RAIZ,'supabase',arq)).read())
     for m in modulos_completos:
         for k in range(completos_por):c.execute('insert into acad_prova_questoes(modulo,p,o,c) values(%s,%s,%s,2)',(m,f'{m} questão {k}',json.dumps([f'errada a{k}',f'errada b{k}',f'certa {k}',f'errada d{k}'])))
     return c

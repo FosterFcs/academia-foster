@@ -73,31 +73,49 @@ try:
     # ---- certificado
     for nome,cpf,erro in [('Ana','52998224725','nome_invalido'),('Ana Teste Silva','11111111111','cpf_invalido'),('Ana Teste Silva','52998224724','cpf_invalido')]:
         r,e=rpc('ana','acad_solicitar_certificado','rm',nome,cpf);ok(e==erro,f'{nome}/{cpf}: {e}')
-    ct,e=rpc('ana','acad_solicitar_certificado','rm','  Ana   Teste  Silva ','529.982.247-25');ok(e is None and ct['status']=='pendente' and ct['codigo'].startswith('AF-') and len(ct['codigo'])==11,'certificado pendente '+str(ct))
-    ok(abs(float(ct['valor'])-9.90)<1e-9 and ct['nome']=='Ana Teste Silva','valor e nome normalizado')
+    ct,e=rpc('ana','acad_solicitar_certificado','rm','  Ana   Teste  Silva ','529.982.247-25');ok(e is None and ct['status']=='pendente' and ct['codigo'].startswith('AF-') and len(ct['codigo'])==11 and ct['saldo']==0,'sem crédito: certificado pendente '+str(ct))
+    ok(ct['nome']=='Ana Teste Silva','nome normalizado')
     ct2,e=rpc('ana','acad_solicitar_certificado','rm','Ana Teste Souza','52998224725');ok(ct2['codigo']==ct['codigo'] and ct2['nome']=='Ana Teste Souza','pendente pode corrigir o nome, mesmo código')
     r,e=rpc(None,'acad_validar',ct['codigo']);ok(r is None,'pendente não valida')
+    # carteira e pacotes
+    w,e=rpc('ana','acad_carteira');ok(w['saldo']==0 and w['aguardando']==1 and w['compra'] is None and len(w['pacotes'])==4,'carteira inicial')
+    ok([(p['id'],p['creditos'],p['valor']) for p in w['pacotes']]==[('p1',1,4.9),('p5',5,19.9),('p10',10,34.9),('p20',20,59.9)],'tabela de pacotes')
+    r,e=rpc('ana','acad_comprar_pacote','p99');ok(e=='pacote_invalido','pacote inválido')
+    k1,e=rpc('ana','acad_comprar_pacote','p10');ok(k1['codigo'].startswith('PK-') and k1['creditos']==10 and abs(float(k1['valor'])-34.9)<1e-9,'pedido de pacote')
+    k2,e=rpc('ana','acad_comprar_pacote','p5');w,e=rpc('ana','acad_carteira');ok(w['compra']['codigo']==k2['codigo'] and w['compra']['creditos']==5,'trocar o pacote substitui o pedido')
+    r,e=rpc('ana','acad_admin_compras');ok(e=='sem_permissao','aluno não vê compras')
+    r,e=rpc('ana','acad_admin_compra',k2['codigo'],'confirmar');ok(e=='sem_permissao','aluno não confirma o próprio pagamento')
     r,e=rpc('ana','acad_admin_pendentes');ok(e=='sem_permissao','aluno não vê painel')
-    r,e=rpc('ana','acad_admin_decidir',ct['codigo'],'emitir');ok(e=='sem_permissao','aluno não emite')
-    lst,e=rpc('wil','acad_admin_pendentes');ok(any(x['codigo']==ct['codigo'] and x['email']=='ana@x.com' for x in lst),'admin vê pendente com e-mail')
+    lst,e=rpc('wil','acad_admin_compras');ok([x['codigo'] for x in lst if x['status']=='pendente']==[k2['codigo']] and lst[0]['email']=='ana@x.com' and lst[0]['nome']=='Ana Teste Souza','instrutor vê só o pedido vigente, com e-mail e nome')
     ok(rpc('wil','acad_eh_admin')[0] is True and rpc('ana','acad_eh_admin')[0] is False,'quem é admin')
-    r,e=rpc('wil','acad_admin_decidir',ct['codigo'],'apagar');ok(e=='acao_invalida','ação inválida')
-    r,e=rpc('wil','acad_admin_decidir',ct['codigo'],'emitir');ok(r and r['status']=='emitido','admin emite')
-    r,e=rpc('wil','acad_admin_decidir',ct['codigo'],'cancelar');ok(e=='certificado_nao_pendente','emitido não volta')
+    r,e=rpc('wil','acad_admin_compra',k1['codigo'],'confirmar');ok(e=='compra_nao_pendente','pedido substituído não pode ser confirmado')
+    r,e=rpc('wil','acad_admin_compra',k2['codigo'],'apagar');ok(e=='acao_invalida','ação inválida')
+    r,e=rpc('wil','acad_admin_compra',k2['codigo'],'confirmar');ok(r['status']=='pago' and r['emitidos']==1 and r['saldo']==4,'confirmar: créditos entram e o pendente é emitido '+str(r))
+    r,e=rpc('wil','acad_admin_compra',k2['codigo'],'confirmar');ok(e=='compra_nao_pendente','não confirma duas vezes')
     v,e=rpc(None,'acad_validar',ct['codigo'].lower()+' ');ok(v and v['nome']=='Ana Teste Souza' and v['cpf']=='***.982.247-**' and v['carga']==4 and v['nota']==7 and v['modulo']=='rm','validação pública '+str(v))
     ok('user_id' not in v and 'email' not in v,'validação não expõe e-mail nem id')
     r,e=rpc(None,'acad_validar','AF-NAOEXISTE');ok(r is None,'código inexistente')
-    ct3,e=rpc('ana','acad_solicitar_certificado','rm','Outra Pessoa Nome','52998224725');ok(ct3['codigo']==ct['codigo'] and ct3['nome']=='Ana Teste Souza','emitido não muda o nome')
-    m,e=rpc('ana','acad_meus_certificados');ok(len(m)==1 and m[0]['status']=='emitido','meus certificados')
-    m,e=rpc('bia','acad_meus_certificados');ok(m==[],'certificados de outro aluno não aparecem')
-    s,e=rpc('ana','acad_situacao','rm');ok(s['aprovada'] and s['nota']==7 and s['certificado']['status']=='emitido' and abs(float(s['preco'])-9.9)<1e-9,'situação final')
-    # cancelar libera novo pedido
+    ct3,e=rpc('ana','acad_solicitar_certificado','rm','Outra Pessoa Nome','52998224725');ok(ct3['codigo']==ct['codigo'] and ct3['nome']=='Ana Teste Souza' and ct3['saldo']==4,'emitido não muda o nome nem gasta crédito')
+    # com crédito, o próximo sai na hora
     pc,e=rpc('ana','acad_iniciar_prova','ca');r,e=rpc('ana','acad_enviar_prova',pc['tentativa'],responder(pc,9))
-    k1,e=rpc('ana','acad_solicitar_certificado','ca','Ana Teste Souza','52998224725');r,e=rpc('wil','acad_admin_decidir',k1['codigo'],'cancelar');ok(r['status']=='cancelado','cancelar')
-    k2,e=rpc('ana','acad_solicitar_certificado','ca','Ana Teste Souza','52998224725');ok(k2['codigo']!=k1['codigo'] and k2['status']=='pendente','novo pedido após cancelar')
-    ok(rpc(None,'acad_validar',k1['codigo'])[0] is None,'cancelado não valida')
+    k,e=rpc('ana','acad_solicitar_certificado','ca','Ana Teste Souza','52998224725');ok(k['status']=='emitido' and k['saldo']==3,'com crédito: emitido na hora')
+    ok(rpc(None,'acad_validar',k['codigo'])[0]['nota']==9,'valida o segundo')
+    m,e=rpc('ana','acad_meus_certificados');ok(len(m)==2 and all(x['status']=='emitido' for x in m),'meus certificados')
+    m,e=rpc('bia','acad_meus_certificados');ok(m==[],'certificados de outro aluno não aparecem')
+    ok(rpc('bia','acad_carteira')[0]['saldo']==0,'créditos não passam para outro aluno')
+    s,e=rpc('ana','acad_situacao','rm');ok(s['aprovada'] and s['nota']==7 and s['certificado']['status']=='emitido','situação final')
+    lst,e=rpc('wil','acad_admin_pendentes');ok(len(lst)==2,'instrutor vê os emitidos')
+    # cancelar pedido de pacote
+    k3,e=rpc('bia','acad_comprar_pacote','p1');r,e=rpc('wil','acad_admin_compra',k3['codigo'],'cancelar');ok(r['status']=='cancelado' and rpc('bia','acad_carteira')[0]['compra'] is None,'cancelar pedido')
+    # tabelas novas fechadas
+    for quem in ['ana',None]:
+        como(quem)
+        try:c.execute('select * from public.acad_compras');ok(False,'acad_compras legível por '+str(quem))
+        except psycopg.Error:ok(True,'')
+        c.execute('reset role')
+    r,e=rpc('ana','acad_emitir_pendentes',U['ana']);ok(e is not None,'função interna de emissão fechada')
     # anônimo só valida
-    for fn,args in [('acad_situacao',('rm',)),('acad_meus_certificados',()),('acad_admin_pendentes',()),('acad_solicitar_certificado',('rm','A B C','52998224725'))]:
+    for fn,args in [('acad_situacao',('rm',)),('acad_meus_certificados',()),('acad_admin_pendentes',()),('acad_carteira',()),('acad_comprar_pacote',('p1',)),('acad_admin_compras',()),('acad_solicitar_certificado',('rm','A B C','52998224725'))]:
         r,e=rpc(None,fn,*args);ok(e is not None,'anônimo bloqueado em '+fn)
     print(f'{n-f}/{n} verificações do banco de certificação passaram')
 finally:

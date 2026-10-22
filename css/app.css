@@ -215,3 +215,10 @@ fieldset.q legend{font-weight:600;padding:0 4px}
 details.mini{margin:10px 0}
 details.mini summary{cursor:pointer;color:var(--steel);font-weight:600}
 @media (max-width:560px){.pix{grid-template-columns:1fr}.pix-qr{margin:0 auto}}
+
+.pacotes{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:10px 0}
+.pacote{display:flex;flex-direction:column;gap:2px;align-items:flex-start;text-align:left;padding:12px 14px;border:1.5px solid var(--line);background:var(--sheet);color:var(--ink);cursor:pointer;font:inherit}
+.pacote:hover{border-color:var(--steel)}
+.pacote.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.pacote b{font-size:.95rem}.pacote span{font-family:var(--f-mono);font-size:.75rem;color:var(--muted)}
+.pacote strong{font-family:var(--f-mono);font-size:1.15rem;margin-top:4px}.pacote small{color:var(--pos);font-weight:600}

@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.6.1';
+const VERSAO_APP='1.7.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -86,7 +86,7 @@ function render(){
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">${m.eyebrow}</span><h2>${m.titulo}</h2></div>
   <div class="tabs" role="tablist">${tabs.map(([k,t],i)=>`<button class="tab" role="tab" id="t-${k}" aria-selected="${st.tab===k}" aria-controls="painel" data-k="${k}"><span class="n">${i+1}</span>${t}</button>`).join('')}</div>
   <section class="painel" id="painel" role="tabpanel" aria-labelledby="t-${st.tab}"></section>`;
-  $('main').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{st.tab=b.dataset.k;render()});
+  $('main').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{st.tab=b.dataset.k;if(st.tab==='cert'&&typeof Cert!=='undefined'&&!(Cert.provas[m.id]&&!Cert.provas[m.id].fim))delete Cert.sit[m.id];render()});
   const p=$('painel');
   if(st.tab==='teoria')p.innerHTML=m.teoria;
   else if(st.tab==='exemplo')renderExemplos(m,p);
