@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:wght@400;600;700&family=JetBrains+Mono:wght@400;600&family=Cormorant+Garamond:ital,wght@0,600;1,500&display=swap">
 <style>
+@font-face{font-family:'Assinatura';src:url('fonts/assinatura.woff2') format('woff2');font-display:block}
 :root{--ink:#1b2a3a;--muted:#5b6b7a;--line:#c9d2da;--paper:#f4f1ea;--sheet:#ffffff;--amber:#c8891b;--steel:#2b5d86;--ok:#1f7a4d;--neg:#b2452f;
   --f-head:'Barlow Condensed',system-ui,sans-serif;--f-body:'Source Sans 3',system-ui,sans-serif;--f-mono:'JetBrains Mono',ui-monospace,monospace;--f-serif:'Cormorant Garamond',Georgia,serif}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--ink:#e6edf3;--muted:#9aabba;--line:#33475a;--paper:#0f1a24;--sheet:#16232f}}
@@ -59,7 +60,7 @@ button,.btn{font:600 .95rem var(--f-body);padding:10px 16px;border:1.5px solid v
 .f-prog b{color:var(--c-preto);text-transform:uppercase;letter-spacing:.08em;font-size:.66rem}
 .f-ass{margin-top:auto;display:grid;grid-template-columns:1fr 1fr;gap:44px;align-items:start;padding-top:10px}
 .f-ass div{text-align:center;font-size:.74rem;color:var(--c-cinza)}
-.f-ass .assin{font-family:var(--f-serif);font-style:italic;font-weight:600;font-size:2rem;line-height:1;color:var(--c-preto);height:34px}
+.f-ass .assin{font-family:'Assinatura',cursive;font-weight:400;font-size:3.3rem;line-height:.7;color:#14213d;height:34px;transform:rotate(-4deg) translateY(4px);white-space:nowrap}
 .f-ass .branco{height:34px}
 .f-ass .linha{border-top:1.5px solid var(--c-preto);margin-top:4px;padding-top:6px;font-weight:700;font-size:.86rem;color:var(--c-preto)}
 .f-ass span{display:block;line-height:1.45}
