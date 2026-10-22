@@ -45,8 +45,8 @@ with sync_playwright() as p:
     ok(u['meta'].get('nome')=='Wilson Teste' and u['meta'].get('origem')=='academia','nome e origem enviados no cadastro')
     ok(len(linha(uid,'progresso').get('rm',{}))==3,'progresso anterior ao cadastro subiu para a conta')
     ok('Wilson' in pg.inner_text('#btConta') and '✓' in pg.inner_text('#btConta'),'topo mostra nome e salvo')
-    responder(pg,'rm',5);responder(pg,'is',2);sincronizado(pg)
-    ok(len(linha(uid,'progresso')['rm'])==5 and len(linha(uid,'progresso')['is'])==2,'resposta nova sobe sozinha')
+    responder(pg,'rm',15);responder(pg,'is',2);sincronizado(pg)
+    ok(len(linha(uid,'progresso')['rm'])==15 and len(linha(uid,'progresso')['is'])==2,'resposta nova sobe sozinha')
     # simulado e Bancada SIG
     pg.evaluate("st.mod='sim';render()");esperar(pg)
     for i in range(10):pg.click(f'#sl .q:nth-child({i+1}) .op >> nth=0')
@@ -72,7 +72,7 @@ with sync_playwright() as p:
     pg2.fill('#ctEmail','wilson@exemplo.com');pg2.fill('#ctSenha','errada');pg2.click('#ctOk');pg2.wait_for_selector('#ctMsg')
     ok('incorretos' in pg2.inner_text('#ctMsg'),'senha errada: mensagem clara')
     pg2.fill('#ctSenha','senhaForte123');pg2.click('#ctOk');pg2.wait_for_selector('.mod-head:has-text("Olá")');sincronizado(pg2)
-    pr=pg2.evaluate('prog');ok(len(pr.get('rm',{}))==5 and len(pr.get('ca',{}))==4,'progresso chega no outro aparelho')
+    pr=pg2.evaluate('prog');ok(len(pr.get('rm',{}))==15 and len(pr.get('ca',{}))==4,'progresso chega no outro aparelho')
     ok('5 de 16' not in pg2.inner_text('#main') and 'Disciplinas concluídas' in pg2.inner_text('#main'),'painel da conta')
     pg2.evaluate("st.mod='inicio';render()");ok('✓' in pg2.text_content('#trilha'),'trilha mostra disciplina concluída')
     pg2.evaluate("st.mod='tp';st.tab='sig';render()");esperar(pg2);pg2.wait_for_selector('#sigMap')
@@ -89,7 +89,7 @@ with sync_playwright() as p:
     # ---------- outra pessoa no mesmo aparelho não herda nada
     conta(pg2);pg2.click('[data-modo="criar"]');pg2.fill('#ctNome','Maria');pg2.fill('#ctEmail','maria@exemplo.com');pg2.fill('#ctSenha','outraSenha99');pg2.fill('#ctSenha2','outraSenha99');pg2.check('#ctAceito');pg2.click('#ctOk')
     pg2.wait_for_selector('.mod-head:has-text("Olá, Maria")');sincronizado(pg2);uid2=pg2.evaluate('Conta.s.user.id')
-    ok(linha(uid2,'progresso') in (None,{}) ,'conta nova começa vazia');ok(len(linha(uid,'progresso')['rm'])==5,'conta do Wilson intacta')
+    ok(linha(uid2,'progresso') in (None,{}) ,'conta nova começa vazia');ok(len(linha(uid,'progresso')['rm'])==15,'conta do Wilson intacta')
     pg2.evaluate("Conta.meta.dono='outro-id';Conta.salvarMeta();prog={rm:{0:1}};save()");pg2.wait_for_timeout(200)
     # ---------- e-mail já cadastrado
     conta(pg2);pg2.click('#ctSair');pg2.click('#ctSair');pg2.wait_for_function("!Conta.logado");conta(pg2);pg2.click('[data-modo="criar"]')

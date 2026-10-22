@@ -28,9 +28,25 @@ with sync_playwright() as p:
         for m in mods:
             if m in('sim','inicio'): continue
             go(m)
-            for tab in ['teoria','exemplo','sim','quiz']:
+            for tab in ['teoria','exemplo','sim','obra','quiz']:
                 pg.click(f'.tab[data-k="{tab}"]')
                 ok(len(pg.inner_text('#painel'))>200,f'{w} {m}/{tab} vazio')
+                if tab=='exemplo':
+                    chips=pg.query_selector_all('#painel [data-ex]')
+                    ok(len(chips)==3,f'{w} {m}: 3 exemplos ({len(chips)})')
+                    vistos=set()
+                    for k in range(len(chips)):
+                        pg.click(f'#painel [data-ex="{k}"]');tx=pg.inner_text('#painel .lista')
+                        ok(len(tx)>200 and 'NaN' not in tx and 'undefined' not in tx,f'{w} {m}: exemplo {k+1} vazio')
+                        vistos.add(tx[:80])
+                    ok(len(vistos)==len(chips),f'{w} {m}: exemplos repetidos')
+                    pg.click('#painel [data-ex="0"]')
+                if tab=='obra':
+                    ok(len(pg.query_selector_all('#painel .conceito.erro'))>=4,f'{w} {m}: erros comuns')
+                    nck=len(pg.query_selector_all('#painel .checklist input'))
+                    ok(nck>=6,f'{w} {m}: checklist ({nck})')
+                    pg.click('#painel .checklist input >> nth=0')
+                    ok(pg.is_checked('#painel .checklist input >> nth=0') and f'1 de {nck}' in pg.inner_text('#painel'),f'{w} {m}: marcar checklist')
                 if tab=='sim':
                     ok(pg.query_selector('#draw svg') is not None or m=='ca',f'{w} {m}: sem desenho')
                     mem=pg.inner_text('#memorial');ok(len(mem)>50 and 'NaN' not in mem and 'Infinity' not in mem,f'{w} {m}: memorial inválido')
@@ -49,9 +65,10 @@ with sync_playwright() as p:
                     for chip in pg.query_selector_all('.chip'): chip.click()
                     ok('NaN' not in pg.inner_text('#memorial'),f'{w} {m}: NaN após atalhos')
                 if tab=='quiz':
-                    for i in range(5):
+                    nq=len(pg.query_selector_all('#ql .q'));ok(nq==15,f'{w} {m}: 15 questões ({nq})')
+                    for i in range(nq):
                         pg.click(f'#ql .q:nth-child({i+1}) .op >> nth=0')
-                    ok(pg.query_selector_all('#ql .expl:not([hidden])').__len__()==5,f'{w} {m}: explicações')
+                    ok(pg.query_selector_all('#ql .expl:not([hidden])').__len__()==nq,f'{w} {m}: explicações')
                     ok('Resultado' in pg.inner_text('#placar'),f'{w} {m}: placar final')
             ok(pg.evaluate('document.documentElement.scrollWidth<=window.innerWidth+1'),f'{w} {m}: rolagem horizontal')
         # simulado
@@ -61,6 +78,8 @@ with sync_playwright() as p:
         # persistência
         pg.reload();esperar(pg);go('rm')
         ok('✓' in pg.inner_text('#trilha'),f'{w}: progresso salvo após recarregar')
+        pg.click('.tab[data-k="obra"]');ok(pg.is_checked('#painel .checklist input >> nth=0'),f'{w}: checklist salvo após recarregar')
+        pg.click('#ckLimpar');ok(not pg.is_checked('#painel .checklist input >> nth=0'),f'{w}: limpar checklist')
         # topografia: editar e adicionar vértice
         go('tp');pg.click('.tab[data-k="sim"]');pg.click('#tpEx')
         ok('660,00 m²' in pg.inner_text('#tiles'),f'{w}: área trapézio na interface')

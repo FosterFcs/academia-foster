@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.2.0';
+const VERSAO_APP='1.3.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -55,7 +55,7 @@ const MODS=CATALOGO;MODS.forEach(m=>{m.carregado=false});
 const modById=id=>MODS.find(m=>m.id===id);
 function placarMod(m){const r=prog[m.id]||{},n=Object.keys(r).length,ok=m.quiz.filter((q,i)=>r[i]===q.c).length;return{n,ok,tot:m.quiz.length}}
 function tagMod(m){const p=placarMod(m);return p.n===p.tot?`<span class="tag feito">✓ ${p.ok}/${p.tot}</span>`:p.n?`<span class="tag">${p.n}/${p.tot}</span>`:''}
-function bindNav(root){root.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.m;st.tab='teoria';render();$('main').scrollIntoView({block:'start',behavior:'smooth'})})}
+function bindNav(root){root.querySelectorAll('[data-m]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.m;st.tab='teoria';st.ex=0;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})})}
 function trilha(){
   const mob=matchMedia('(max-width:820px)').matches;
   let h=`<button class="disc${st.mod==='inicio'?' ativo':''}" data-m="inicio"><span class="cod">00</span>Início</button>`;
@@ -64,11 +64,11 @@ function trilha(){
   h+=`<hr><button class="disc${st.mod==='sim'?' ativo':''}" data-m="sim"><span class="cod">SG</span>Simulado geral${simulado&&simulado.fim?`<span class="tag feito">${simulado.ok}/10</span>`:''}</button>`;
   $('trilha').innerHTML=h;bindNav($('trilha'));
   let ok=0,feitos=0;MODS.forEach(m=>{const p=placarMod(m);ok+=p.ok;if(p.n===p.tot)feitos++});
-  $('stN').textContent=MODS.length;$('stMod').textContent=`${feitos} CONCLUÍDAS`;$('stQuiz').textContent=`${ok}/${MODS.length*5} certas`;$('stSim').textContent=simulado&&simulado.fim?`${simulado.ok}/10`:'—';
+  $('stN').textContent=MODS.length;$('stMod').textContent=`${feitos} CONCLUÍDAS`;$('stQuiz').textContent=`${ok}/${MODS.reduce((t,m)=>t+m.quiz.length,0)} certas`;$('stSim').textContent=simulado&&simulado.fim?`${simulado.ok}/10`:'—';
 }
 function renderInicio(){
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">Início · ${MODS.length} disciplinas em ${AREAS.length} áreas</span><h2>O que você quer aprender hoje?</h2></div>
-  <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, um exemplo resolvido, um simulador com memorial de cálculo e um quiz. No fim, teste tudo no simulado geral.</p>
+  <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, três exemplos resolvidos (do básico ao caso de obra), simulador com desenho e memorial de cálculo, a aba <b>Na obra</b> com erros comuns e checklist de fiscalização, e um quiz de 15 questões. No fim, teste tudo no simulado geral.</p>
   <div class="areas">${AREAS.map(([n,ids])=>`<div class="area"><h3>${n}</h3>${ids.map(id=>{const m=modById(id);return `<button class="card-mod" data-m="${id}"><span class="cod">${m.cod}</span><b>${m.nome}</b>${tagMod(m)}<small>${m.titulo}</small></button>`}).join('')}</div>`).join('')}</div>
   <h3>Próximas disciplinas</h3><div class="presets">${PROX.map(p=>`<span class="chip off">${p}</span>`).join('')}</div>
   <div><button class="btn" data-m="sim">Fazer o simulado geral</button></div></section>`;
@@ -82,14 +82,15 @@ function render(){
   const m=modById(st.mod);
   if(!m){st.mod='inicio';return render()}
   if(!m.carregado)return renderCarregando(m);
-  const tabs=[['teoria','Teoria'],['exemplo','Exemplo'],['sim','Simulador'],['quiz','Quiz']];if(m.sig)tabs.splice(3,0,['sig','Bancada SIG']);
+  const tabs=[['teoria','Teoria'],['exemplo',m.exemplos&&m.exemplos.length?'Exemplos':'Exemplo'],['sim','Simulador']];if(m.sig)tabs.push(['sig','Bancada SIG']);if(m.obra)tabs.push(['obra','Na obra']);tabs.push(['quiz','Quiz']);if(!tabs.some(t=>t[0]===st.tab))st.tab='teoria';
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">${m.eyebrow}</span><h2>${m.titulo}</h2></div>
   <div class="tabs" role="tablist">${tabs.map(([k,t],i)=>`<button class="tab" role="tab" id="t-${k}" aria-selected="${st.tab===k}" aria-controls="painel" data-k="${k}"><span class="n">${i+1}</span>${t}</button>`).join('')}</div>
   <section class="painel" id="painel" role="tabpanel" aria-labelledby="t-${st.tab}"></section>`;
   $('main').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{st.tab=b.dataset.k;render()});
   const p=$('painel');
   if(st.tab==='teoria')p.innerHTML=m.teoria;
-  else if(st.tab==='exemplo')p.innerHTML=m.exemplo+`<div><button class="btn" id="irSim">Abrir o simulador</button></div>`;
+  else if(st.tab==='exemplo')renderExemplos(m,p);
+  else if(st.tab==='obra')renderObra(m,p);
   else if(st.tab==='sim'){p.innerHTML=m.sim.html();if(m.sim.init)m.sim.init();
     p.querySelectorAll('.ctrl input[type=range],.ctrl select').forEach(i=>i.addEventListener('input',()=>{outs();m.sim.update()}));outs();m.sim.update();}
   else if(st.tab==='sig'&&m.sig){p.innerHTML=m.sig.html();m.sig.init()}
@@ -103,6 +104,27 @@ function qBlock(q,i,resp,onPick,orig){
   q.o.forEach((t,j)=>{const b=document.createElement('button');b.className='op';b.textContent=t;b.onclick=()=>onPick(j);ops.appendChild(b)});
   if(resp!==undefined){[...ops.children].forEach((b,j)=>{b.disabled=true;if(j===q.c)b.classList.add('certa');else if(j===resp)b.classList.add('errada')});d.querySelector('.expl').hidden=false}
   return d;
+}
+const NIVEL={facil:['Fácil','pos'],medio:['Médio','steel'],obra:['Caso de obra','amber-ink']};
+function renderExemplos(m,p){
+  const ex=[{nivel:'medio',titulo:null,html:m.exemplo},...(m.exemplos||[])];
+  const idx=Math.min(st.ex||0,ex.length-1);
+  p.innerHTML=(ex.length>1?`<div class="presets" role="tablist" aria-label="Exemplos">${ex.map((e,i)=>`<button class="chip${i===idx?' on':''}" data-ex="${i}" role="tab" aria-selected="${i===idx}">Exemplo ${i+1} · ${NIVEL[e.nivel][0]}</button>`).join('')}</div>`:'')+
+    `<div class="lista">${ex[idx].titulo?`<h3>${ex[idx].titulo}</h3>`:''}${ex[idx].html}</div><div><button class="btn" id="irSim">Abrir o simulador</button></div>`;
+  p.querySelectorAll('[data-ex]').forEach(b=>b.onclick=()=>{st.ex=+b.dataset.ex;render()});
+}
+function lerChecks(){try{return JSON.parse(localStorage.getItem('af-check')||'{}')||{}}catch(e){return{}}}
+function renderObra(m,p){
+  const o=m.obra,ch=lerChecks(),meu=ch[m.id]||{};
+  p.innerHTML=`<p>${o.intro}</p><h3>Erros comuns</h3><div class="cols">${o.erros.map(([t,d])=>`<div class="conceito erro"><h4>${t}</h4><p>${d}</p></div>`).join('')}</div>
+  <h3>Checklist de fiscalização</h3><p class="nota">Marque conforme confere na obra. As marcações ficam salvas neste aparelho.</p>
+  <div class="checklist">${o.checklist.map((t,i)=>`<label class="chk"><input type="checkbox" id="ck_${m.id}_${i}" data-i="${i}"${meu[i]?' checked':''}> ${t}</label>`).join('')}</div>
+  <div class="presets"><button class="chip" id="ckLimpar">Desmarcar tudo</button><span class="nota" id="ckConta"></span></div>
+  ${o.dica?`<div class="dica"><b>Dica de campo</b>${o.dica}</div>`:''}`;
+  const conta=()=>{const n=p.querySelectorAll('.checklist input:checked').length;$('ckConta').textContent=`${n} de ${o.checklist.length} itens conferidos`};conta();
+  const salvar=()=>{const c=lerChecks();c[m.id]={};p.querySelectorAll('.checklist input').forEach(i=>{if(i.checked)c[m.id][i.dataset.i]=1});try{localStorage.setItem('af-check',JSON.stringify(c))}catch(e){}conta()};
+  p.querySelectorAll('.checklist input').forEach(i=>i.onchange=salvar);
+  $('ckLimpar').onclick=()=>{p.querySelectorAll('.checklist input').forEach(i=>i.checked=false);salvar()};
 }
 function renderQuiz(m,p){
   const r=prog[m.id]||{};p.innerHTML='<div class="lista" id="ql"></div><div class="placar"><span id="placar"></span><button class="btn sec" id="refazer">Refazer quiz</button></div>';

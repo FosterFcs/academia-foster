@@ -180,3 +180,9 @@ footer{font-size:.8rem;color:var(--muted);text-align:center}
 .form-conta .campo input[type=email],.form-conta .campo input[type=password]{width:100%;font:inherit;padding:8px 10px;background:var(--sheet);color:var(--ink);border:1.5px solid var(--line)}
 .form-conta .campo input:focus{border-color:var(--steel)}
 p.pill{margin:0;display:block;max-width:420px;font-family:var(--f-body);font-weight:600;font-size:.9rem}
+/* Exemplos e Na obra */
+.conceito.erro{border-left-color:var(--neg)}
+.checklist{display:flex;flex-direction:column;gap:8px;max-width:68ch}
+.checklist .chk{align-items:flex-start;padding:8px 10px;border:1.5px solid var(--line);background:var(--sheet)}
+.checklist .chk input{margin-top:3px;flex:none}
+.checklist .chk:has(input:checked){border-color:var(--pos);background:var(--pos-fill)}
