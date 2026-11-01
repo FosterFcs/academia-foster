@@ -63,6 +63,10 @@ e abra http://localhost:8000
 3. Se a disciplina tiver cálculos novos, coloque as funções em `js/calc.js` e escreva os testes em `testes/`.
 4. Rode os testes e aumente a versão em `sw.js`. O service worker passa a guardar o arquivo novo automaticamente.
 
+## Vídeo-aulas
+
+Cada disciplina tem a aba **Vídeo-aula**, que toca o vídeo do canal Academia Foster no YouTube (precisa de internet). Os códigos dos vídeos ficam em `VIDEOS`, no fim de `js/catalogo.js`: para incluir uma aula nova, acrescente `id:'CODIGO'`, onde CODIGO é o trecho depois de `youtu.be/`. Disciplina sem código mostra "Vídeo-aula em breve".
+
 ## Testes
 
 ```

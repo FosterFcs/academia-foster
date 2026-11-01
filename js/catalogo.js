@@ -340,3 +340,6 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 {p:"O fator de veículo FV converte:",o:["Velocidade em tempo", "CBR em N", "Dinheiro em espessura", "A passagem de cada veículo em equivalentes do eixo padrão"],c:3,e:"Ele traduz cada tipo de caminhão em passadas do eixo de 8,2 t."},
 {p:"Qual a espessura máxima usual de uma camada compactada de solo ou brita?",o:["5 cm", "20 cm", "60 cm", "1 m"],c:1,e:"Camadas acima de cerca de 20 cm compactadas não ficam uniformes no fundo."}]}
 ];
+
+// Vídeo-aulas no YouTube (canal Academia Foster). Para incluir uma aula nova, coloque aqui o código do link youtu.be/CODIGO.
+const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns',mc:'scWew_sg_cU',tp:'olD9dmAPC7E',or:'zVRDJ39NCq0',lj:'qHUNz6HJ19o',ma:'wHF61AL737E'};
