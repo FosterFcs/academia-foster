@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.7.3';
+const VERSAO_APP='1.8.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -82,13 +82,14 @@ function render(){
   const m=modById(st.mod);
   if(!m){st.mod='inicio';return render()}
   if(!m.carregado)return renderCarregando(m);
-  const tabs=[['teoria','Teoria'],['exemplo',m.exemplos&&m.exemplos.length?'Exemplos':'Exemplo'],['sim','Simulador']];if(m.sig)tabs.push(['sig','Bancada SIG']);if(m.obra)tabs.push(['obra','Na obra']);tabs.push(['quiz','Quiz']);if(typeof Cert!=='undefined')tabs.push(['cert','Certificado']);if(!tabs.some(t=>t[0]===st.tab))st.tab='teoria';
+  const tabs=[['teoria','Teoria'],['video','Vídeo-aula'],['exemplo',m.exemplos&&m.exemplos.length?'Exemplos':'Exemplo'],['sim','Simulador']];if(m.sig)tabs.push(['sig','Bancada SIG']);if(m.obra)tabs.push(['obra','Na obra']);tabs.push(['quiz','Quiz']);if(typeof Cert!=='undefined')tabs.push(['cert','Certificado']);if(!tabs.some(t=>t[0]===st.tab))st.tab='teoria';
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">${m.eyebrow}</span><h2>${m.titulo}</h2></div>
   <div class="tabs" role="tablist">${tabs.map(([k,t],i)=>`<button class="tab" role="tab" id="t-${k}" aria-selected="${st.tab===k}" aria-controls="painel" data-k="${k}"><span class="n">${i+1}</span>${t}</button>`).join('')}</div>
   <section class="painel" id="painel" role="tabpanel" aria-labelledby="t-${st.tab}"></section>`;
   $('main').querySelectorAll('.tab').forEach(b=>b.onclick=()=>{st.tab=b.dataset.k;if(st.tab==='cert'&&typeof Cert!=='undefined'&&!(Cert.provas[m.id]&&!Cert.provas[m.id].fim))delete Cert.sit[m.id];render()});
   const p=$('painel');
   if(st.tab==='teoria')p.innerHTML=m.teoria;
+  else if(st.tab==='video')renderVideo(m,p);
   else if(st.tab==='exemplo')renderExemplos(m,p);
   else if(st.tab==='obra')renderObra(m,p);
   else if(st.tab==='sim'){const lista=[m.sim,...(m.extras||[])],k=Math.min(st.calc||0,lista.length-1),s=lista[k];
@@ -110,6 +111,10 @@ function qBlock(q,i,resp,onPick,orig){
   return d;
 }
 const NIVEL={facil:['Fácil','pos'],medio:['Médio','steel'],obra:['Caso de obra','amber-ink']};
+function renderVideo(m,p){const v=typeof VIDEOS!=='undefined'&&VIDEOS[m.id];
+  if(!v){p.innerHTML=`<div class="video-breve"><b>Vídeo-aula em breve</b><p>A aula em vídeo desta disciplina está sendo preparada. Enquanto isso, estude pela aba Teoria e pelos exemplos resolvidos.</p></div>`;return}
+  p.innerHTML=`<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${v}?rel=0&modestbranding=1" title="Vídeo-aula: ${m.nome}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+  <p class="video-nota">Precisa de internet para assistir. <a href="https://youtu.be/${v}" target="_blank" rel="noopener">Abrir no YouTube</a></p>`}
 function renderExemplos(m,p){
   const ex=[{nivel:'medio',titulo:null,html:m.exemplo},...(m.exemplos||[])];
   const idx=Math.min(st.ex||0,ex.length-1);
