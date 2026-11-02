@@ -12,7 +12,11 @@ create table if not exists public.asaas_clientes(
 alter table public.asaas_clientes enable row level security;
 revoke all on public.asaas_clientes from anon, authenticated;
 
-alter table public.orca_pagamentos add column if not exists asaas_id text, add column if not exists asaas_url text;
+do $$ begin  -- tabela do Foster Orça (mesmo projeto); ignorada onde não existe
+  if to_regclass('public.orca_pagamentos') is not null then
+    alter table public.orca_pagamentos add column if not exists asaas_id text, add column if not exists asaas_url text;
+  end if;
+end $$;
 alter table public.acad_compras   add column if not exists asaas_id text, add column if not exists asaas_url text;
 
 -- acad_confirmar_interno(p_codigo, p_valor): marca o pacote como pago (aceita pendente ou trocado),

@@ -69,7 +69,7 @@ create or replace function public.acad_cfg(k text) returns text language sql sta
 $$;
 
 -- ---------- prova
--- Regras: 10 questões sorteadas, 30 minutos, 7 acertos para aprovar, no máximo 2 tentativas a cada 24 horas.
+-- Regras: 10 questões sorteadas, 30 minutos, 6 acertos para aprovar (era 7 até 02/11/2026; ver 04_nota_minima.sql), no máximo 2 tentativas a cada 24 horas.
 create or replace function public.acad_iniciar_prova(p_modulo text) returns jsonb language plpgsql volatile security definer set search_path=public,pg_temp as $$
 declare u uuid:=auth.uid(); t public.acad_tentativas; n int; ids int[]; ords jsonb:='[]'::jsonb; q record; perm jsonb; qs jsonb:='[]'::jsonb; k int;
 begin
@@ -115,8 +115,8 @@ begin
       end if;
     end loop;
   end if;
-  update public.acad_tentativas set enviada=now(), acertos=ac, aprovada=(ac>=7) where id=t.id;
-  return jsonb_build_object('acertos',ac,'total',array_length(t.questoes,1),'aprovada',ac>=7,'no_prazo',no_prazo);
+  update public.acad_tentativas set enviada=now(), acertos=ac, aprovada=(ac>=6) where id=t.id;
+  return jsonb_build_object('acertos',ac,'total',array_length(t.questoes,1),'aprovada',ac>=6,'no_prazo',no_prazo);
 end $$;
 
 create or replace function public.acad_situacao(p_modulo text) returns jsonb language plpgsql stable security definer set search_path=public,pg_temp as $$

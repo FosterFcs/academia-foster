@@ -1,6 +1,6 @@
 // Certificação: prova corrigida no servidor, pedido do certificado com Pix e painel de pagamentos do instrutor.
 const Cert={
-  CARGA:4,PROVA_Q:10,MINIMO:7,preco:4.9,cart:null,
+  CARGA:4,PROVA_Q:10,MINIMO:6,preco:4.9,cart:null,
   provas:{},sit:{},carregando:{},
   ERROS:{login_necessario:'Entre na sua conta para fazer a prova.',modulo_sem_prova:'A prova desta disciplina ainda não está disponível.',ja_aprovado:'Você já foi aprovado nesta disciplina.',
     limite_tentativas:'Você já usou as 2 tentativas das últimas 24 horas.',tentativa_inexistente:'Não encontrei esta prova. Recarregue a página.',tentativa_encerrada:'Esta prova já foi enviada.',

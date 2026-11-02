@@ -61,7 +61,7 @@ try:
         ok('10 de 10 respondidas' in pg.inner_text('#ceResp'),'contador de respostas');foto(pg,'c_prova')
         # recarregar no meio retoma a mesma prova
         pg.click('.tab[data-k="teoria"]');pg.click('.tab[data-k="cert"]');ok(pg.locator('#ceLista input:checked').count()==10,'troca de aba mantém respostas')
-        pg.click('#ceEnviar');pg.wait_for_selector('#painel .pill');ok('5 de 10' in pg.inner_text('#painel') and 'Precisa de 7' in pg.inner_text('#painel'),'reprovação explicada')
+        pg.click('#ceEnviar');pg.wait_for_selector('#painel .pill');ok('5 de 10' in pg.inner_text('#painel') and 'Precisa de 6' in pg.inner_text('#painel'),'reprovação explicada')
         ok('1 de 2' in pg.inner_text('#painel'),'conta a tentativa')
         # segunda tentativa: deixar em branco pede confirmação; aprovar com 8
         pg.click('#ceComecar');pg.wait_for_selector('#ceLista fieldset')
