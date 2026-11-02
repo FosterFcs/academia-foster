@@ -917,7 +917,7 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns',mc:'scWew_sg_cU',tp:'olD9dmAPC7E',or:'zVRDJ39NCq0',lj:'qHUNz6HJ19o',ma:'wHF61AL737E'};
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.8.0';
+const VERSAO_APP='1.8.1';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -1320,14 +1320,31 @@ const Cert={
     if(cp){const px=cart.pix&&cart.pix.chave?this.pix({chave:cart.pix.chave,nome:cart.pix.nome,cidade:cart.pix.cidade,valor:cp.valor,txid:cp.codigo}):null,z=this.zap(cart,`Olá, Wilson! Paguei o pacote ${cp.codigo} (${cp.creditos} certificado${cp.creditos>1?'s':''}, R$ ${br(cp.valor)}) da Academia Foster. Segue o comprovante.`);
       h+=`<h4>Pagamento do pacote ${esc(cp.creditos>1?cp.creditos+' certificados':'avulso')}</h4><p>Pedido <b class="mono">${cp.codigo}</b> · valor <b>R$ ${br(cp.valor)}</b>.</p>
       ${px?`<div class="pix"><div class="pix-qr" id="cePixQr" aria-label="QR code do Pix"></div><div><p><b>Pague com Pix</b> pelo QR code ou pelo código copia e cola:</p><textarea id="cePix" readonly rows="3">${px}</textarea><div class="presets"><button class="btn" id="ceCopiaPix">Copiar código Pix</button></div><p class="nota" id="cePixMsg"></p></div></div>`:`<p class="nota">O pagamento é combinado direto com o instrutor pelo WhatsApp.</p>`}
-      <p>Depois de pagar, ${z?`<a href="${z}" target="_blank" rel="noopener">envie o comprovante pelo WhatsApp</a>`:'envie o comprovante para comercial@fosterconstrucoes.com.br'}. Quando o pagamento for confirmado, os créditos entram e os certificados pendentes saem na hora.</p>
+      <p id="ceDepois">Depois de pagar, ${z?`<a href="${z}" target="_blank" rel="noopener">envie o comprovante pelo WhatsApp</a>`:'envie o comprovante para comercial@fosterconstrucoes.com.br'}. Quando o pagamento for confirmado, os créditos entram e os certificados pendentes saem na hora.</p>
       <div class="presets"><button class="btn sec" id="ceAtualizar">Já paguei: verificar de novo</button><button class="chip" id="ceTrocar">Trocar de pacote</button></div><div id="ceLista2" hidden>${lista}</div>`}
     else h+=`<h4>Escolha um pacote</h4>${lista}<p class="nota">Quanto maior o pacote, menor o preço por certificado. Os créditos não vencem e valem para qualquer disciplina.</p>`;
     return h},
   ligarCarteira(root,depois){const cart=this.cart;if(!cart)return;const cp=cart.compra;
-    if(cp&&$('cePixQr')){this.qr($('cePixQr'),$('cePix').value);$('ceCopiaPix').onclick=()=>copiar($('cePix'),$('cePixMsg'))}
+    if(cp&&$('cePixQr')){this.qr($('cePixQr'),$('cePix').value);$('ceCopiaPix').onclick=()=>copiar($('cePix'),$('cePixMsg'));this.pixAuto(cp,depois)}
     const at=$('ceAtualizar');if(at)at.onclick=()=>depois();const tr=$('ceTrocar');if(tr)tr.onclick=()=>{$('ceLista2').hidden=!$('ceLista2').hidden};
     root.querySelectorAll('[data-pk]').forEach(b=>b.onclick=async()=>{if(cp&&cp.pacote===b.dataset.pk)return;b.disabled=true;try{await this.rpc('acad_comprar_pacote',{p_pacote:b.dataset.pk});depois()}catch(e){b.disabled=false;b.querySelector('small').textContent=this.erro(e)}})},
+  // ---------- Pix automático (central de pagamentos Foster no Asaas): os créditos entram sozinhos quando o Pix cai
+  COBRAR:'https://fvsdlpnvqfvjdxmfgbjx.supabase.co/functions/v1/asaas-cobrar',
+  async cobrar(codigo,extra){await Conta.token();const r=await fetch(this.COBRAR,{method:'POST',headers:{'Content-Type':'application/json',apikey:Conta.cfg.chave,Authorization:'Bearer '+Conta.s.access_token},body:JSON.stringify(Object.assign({produto:'academia',codigo},extra||{}))});return r.json().catch(()=>({}))},
+  async pixAuto(cp,depois,extra){const qr=$('cePixQr'),dp=$('ceDepois');if(!qr||!dp)return;let r=null;
+    try{r=await this.cobrar(cp.codigo,extra)}catch(e){return}
+    if(!document.body.contains(qr))return;
+    if(r&&r.pago){depois();return}
+    if(r&&(r.precisa_cpf||r.erro==='cpf_invalido')){
+      dp.innerHTML=`<b>Para gerar o Pix com liberação automática</b>, informe o CPF de quem vai pagar (só na primeira vez):</p><p><input id="ceCpfPix" inputmode="numeric" placeholder="000.000.000-00" style="max-width:200px"> <button class="btn" id="ceCpfOk">Gerar Pix automático</button> ${r.erro?'<span class="nota">CPF inválido. Confira os números.</span>':''}<br><span class="nota">Se preferir, pague pelo QR acima e envie o comprovante pelo WhatsApp.</span>`;
+      $('ceCpfPix').oninput=e=>{e.target.value=this.cpfMascara(e.target.value)};
+      $('ceCpfOk').onclick=()=>{const v=$('ceCpfPix').value;if(!this.cpfValido(v)){$('ceCpfPix').focus();return}$('ceCpfOk').disabled=true;this.pixAuto(cp,depois,{cpf:v.replace(/\D/g,''),nome:Conta.s&&Conta.s.user&&Conta.s.user.user_metadata&&Conta.s.user.user_metadata.nome||''})};return}
+    if(!(r&&r.pix&&r.pix.payload))return;   // sem Asaas: fica o Pix manual
+    qr.innerHTML=`<img alt="QR code do Pix" style="width:100%" src="data:image/png;base64,${r.pix.imagem}">`;$('cePix').value=r.pix.payload;
+    dp.innerHTML='<b>⏳ Aguardando o pagamento…</b> Os créditos entram sozinhos, em poucos segundos, assim que o Pix cair, e os certificados pendentes saem na hora. Não precisa mandar comprovante.';
+    const saldo0=this.cart?this.cart.saldo:0;let n=0;
+    const t=setInterval(async()=>{if(!document.body.contains(dp)||++n>120){clearInterval(t);return}
+      try{const c=await this.rpc('acad_carteira');if(!c.compra||c.compra.codigo!==cp.codigo||c.saldo>saldo0){clearInterval(t);this.cart=c;aviso('Pagamento confirmado! Créditos liberados.');depois()}}catch(e){}},5000)},
   async carteira(){try{this.cart=await this.rpc('acad_carteira');const p=(this.cart.pacotes||[]).find(x=>x.creditos===1);if(p)this.preco=Number(p.valor)}catch(e){this.cart=null}return this.cart},
   // ---------- aba Certificado
   requisitos(m){return `<div class="cols"><div class="conceito"><h4>1 · Estude</h4><p>Teoria, os 3 exemplos, o simulador e a aba Na obra. Responda as 15 questões do quiz.</p></div>
