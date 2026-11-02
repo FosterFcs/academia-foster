@@ -917,7 +917,7 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns',mc:'scWew_sg_cU',tp:'olD9dmAPC7E',or:'zVRDJ39NCq0',lj:'qHUNz6HJ19o',ma:'wHF61AL737E'};
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.8.2';
+const VERSAO_APP='1.8.3';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -1068,7 +1068,7 @@ function renderSimulado(){
   if(!simulado)novoSimulado();
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">SG-10 · Todas as disciplinas</span><h2>Simulado geral com 10 questões sorteadas</h2></div><section class="painel"><p>As questões vêm de todos os módulos. Responda tudo para ver sua nota final. Cada novo simulado sorteia outras perguntas.</p><div class="lista" id="sl"></div><div class="placar"><span id="splac"></span><button class="btn" id="novo">Novo simulado</button></div></section>`;
   simulado.qs.forEach((it,i)=>$('sl').appendChild(qBlock(it.q,i,simulado.resp[i],j=>{simulado.resp[i]=j;const n=Object.keys(simulado.resp).length;simulado.ok=simulado.qs.filter((x,k)=>simulado.resp[k]===x.q.c).length;simulado.fim=n===10;if(simulado.fim&&!simulado.registrado)registrarSimulado();render()},it.m.cod+' · '+it.m.nome)));
-  const n=Object.keys(simulado.resp).length;$('splac').textContent=simulado.fim?`Nota final: ${simulado.ok} de 10 · ${simulado.ok>=7?'Aprovado':'Revise as disciplinas e tente de novo'}`:`${n} de 10 respondidas · ${simulado.ok} certas`;
+  const n=Object.keys(simulado.resp).length;$('splac').textContent=simulado.fim?`Nota final: ${simulado.ok} de 10 · ${simulado.ok>=6?'Aprovado':'Revise as disciplinas e tente de novo'}`:`${n} de 10 respondidas · ${simulado.ok} certas`;
   $('novo').onclick=()=>{novoSimulado();render()};
   const h=historicoSimulados().slice(-5).reverse();
   if(h.length){const d=document.createElement('div');d.className='lista';d.innerHTML='<h3>Seus últimos simulados</h3><div class="tbl-wrap"><table class="ed"><thead><tr><th>Data</th><th>Nota</th></tr></thead><tbody>'+h.map(x=>`<tr><td>${new Date(x.em).toLocaleDateString('pt-BR')} ${new Date(x.em).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</td><td class="num">${x.ok} de ${x.tot}</td></tr>`).join('')+'</tbody></table></div>';$('main').querySelector('.painel').appendChild(d)}
