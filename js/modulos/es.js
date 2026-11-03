@@ -1,0 +1,50 @@
+// ES-24 · Estradas (curva horizontal, superelevação e distância de visibilidade)
+Academia.modulo('es',{
+teoria:`<p>Numa estrada, o traçado é feito de retas (tangentes) ligadas por curvas. Na curva, o carro tende a sair pela tangente. Quem segura o veículo na pista é o <b>atrito do pneu</b> com o pavimento e a <b>superelevação</b>, que é a inclinação da pista para o lado de dentro da curva.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Elementos da curva circular: tangente T, desenvolvimento D, raio R e ângulo central AC">
+<line x1="90" y1="190" x2="320" y2="30" style="stroke:var(--line);stroke-width:2"/><line x1="320" y1="30" x2="550" y2="190" style="stroke:var(--line);stroke-width:2"/>
+<path d="M176 130 Q 320 30 464 130" style="fill:none;stroke:var(--steel);stroke-width:4"/>
+<circle cx="176" cy="130" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="464" cy="130" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="320" cy="30" r="5" style="fill:var(--ink)"/>
+<text x="140" y="126" style="fill:var(--amber-ink)" font-weight="600">PC</text><text x="474" y="126" style="fill:var(--amber-ink)" font-weight="600">PT</text><text x="330" y="26" style="fill:var(--ink)" font-weight="600">PI</text>
+<text x="226" y="70" style="fill:var(--muted)" font-size="10">T</text><text x="410" y="70" style="fill:var(--muted)" font-size="10">T</text><text x="300" y="98" style="fill:var(--steel)" font-size="10" font-weight="600">D (arco)</text>
+<line x1="320" y1="80" x2="320" y2="30" style="stroke:var(--amber);stroke-width:1.5" stroke-dasharray="4 3"/><text x="326" y="58" style="fill:var(--amber-ink)" font-size="10">E</text>
+<text x="40" y="214" style="fill:var(--muted)" font-size="10">PC = começo da curva · PT = fim da curva · PI = encontro das tangentes</text></svg><figcaption>Elementos da curva circular: tangente T, desenvolvimento D, raio R e ângulo central AC</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Velocidade de projeto (V)</h4><p>A velocidade que o traçado precisa permitir com segurança. Ela define o raio mínimo e a visibilidade necessária.</p></div>
+<div class="conceito"><h4>Superelevação (e)</h4><p>Inclinação transversal da pista na curva, em m/m. O DNER limita a 8% em estradas rurais comuns e a 12% em casos especiais.</p></div>
+<div class="conceito"><h4>Visibilidade de parada (Dp)</h4><p>A distância que o motorista precisa enxergar à frente para ver um obstáculo, reagir e frear até parar.</p></div></div>
+<h3>Fórmulas do traçado</h3>
+<div class="formula">Raio mínimo: Rmín = V² / [127 × (e + f)]   (V em km/h, e e f em m/m, R em m)</div>
+<div class="formula">Curva circular: T = R × tan(AC/2) · D = R × AC (rad) · E = R × [1/cos(AC/2) − 1]</div>
+<div class="formula">Visibilidade de parada: Dp = 0,7 × V + V² / [255 × (fl ± i)]   (i = rampa, + subindo, − descendo)</div>
+<div class="dica"><b>Atrito diminui com a velocidade</b>O coeficiente de atrito lateral f cai de cerca de 0,17 a 30 km/h para 0,11 a 120 km/h. Por isso, dobrar a velocidade exige raio muito mais que o dobro.</div>`,
+exemplo:`<h3>Curva numa estrada de 60 km/h</h3>
+<p>Estrada com velocidade de projeto de 60 km/h, superelevação máxima de 8% e atrito lateral 0,15. A curva tem raio de 150 m e ângulo central de 40°. Trecho em nível, com atrito longitudinal 0,33.</p>
+<ol class="passos"><li><b>Raio mínimo.</b> Rmín = 60² / [127 × (0,08 + 0,15)] = 3600 / 29,2 = <b>123,2 m</b>. O raio de 150 m <b>atende</b>.</li>
+<li><b>Tangente.</b> T = 150 × tan 20° = <b>54,6 m</b> do PC ao PI.</li>
+<li><b>Desenvolvimento.</b> AC = 40° = 0,698 rad · D = 150 × 0,698 = <b>104,7 m</b> de arco.</li>
+<li><b>Afastamento.</b> E = 150 × (1/cos 20° − 1) = <b>9,63 m</b> do PI até o meio da curva.</li>
+<li><b>Visibilidade de parada.</b> Dp = 0,7 × 60 + 60² / (255 × 0,33) = 42 + 42,8 = <b>84,8 m</b>.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Raio mínimo a 80 km/h","html":"<p>Uma estrada nova terá velocidade de projeto de 80 km/h, com e = 8% e f = 0,14.</p><ol class=\"passos\"><li><b>Fórmula.</b> Rmín = V² / [127 × (e + f)].</li><li><b>Conta.</b> Rmín = 80² / [127 × (0,08 + 0,14)] = 6400 / 27,94 = <b>229 m</b>.</li><li><b>Comparação.</b> A 60 km/h o mínimo era 123 m. Com um terço a mais de velocidade, o raio quase dobrou.</li><li><b>Leitura.</b> Uma curva de 200 m, que servia a 60 km/h, <b>não serve</b> a 80 km/h: ou se aumenta o raio, ou a placa precisa reduzir a velocidade.</li></ol>"},
+{"nivel":"obra","titulo":"A mesma curva numa descida","html":"<p>O trecho do exemplo (60 km/h, fl = 0,33) fica no meio de uma descida de 6%. É preciso conferir se o corte do talude interno deixa o motorista enxergar o suficiente.</p><ol class=\"passos\"><li><b>Em nível.</b> Dp = 42 + 3600 / (255 × 0,33) = <b>84,8 m</b>.</li><li><b>Descendo 6%.</b> Dp = 42 + 3600 / [255 × (0,33 − 0,06)] = 42 + 52,3 = <b>94,3 m</b>.</li><li><b>Subindo 6%.</b> Dp = 42 + 3600 / [255 × 0,39] = <b>78,2 m</b>.</li><li><b>Na obra.</b> Na descida o carro precisa de quase 10 m a mais para parar. Se o talude de corte ou a vegetação no lado de dentro da curva tapa a vista antes disso, é preciso recuar o talude, roçar ou sinalizar.</li></ol><div class=\"dica\"><b>Vegetação conta</b>Mato que cresce na faixa de domínio vai fechando a visibilidade com o tempo. Roçada nas curvas é manutenção de segurança.</div>"}],
+obra:{"intro":"Curva mal executada não perdoa: superelevação invertida ou insuficiente, transição malfeita e talude tapando a vista são causa frequente de saída de pista. Na obra, o traçado do projeto tem que virar realidade com nivelamento e marcação cuidadosos.","erros":[["Superelevação errada","Executar a curva com a inclinação para fora, ou plana, porque a máquina copiou a seção da reta."],["Sem transição","Passar de repente da reta para a curva com superelevação cheia, sem a rampa de transição."],["Talude tapando a vista","Corte interno da curva executado mais alto ou mais próximo do que o projeto, reduzindo a visibilidade."],["Drenagem no lado errado","Sarjeta e saídas d’água pensadas para a reta, que não recebem a água que a superelevação joga para dentro."]],"checklist":["Estacas do PC, PI e PT locadas e conferidas com o projeto","Superelevação conferida com gabarito ou nível em cada estaca da curva","Comprimento de transição da superelevação respeitado","Sarjeta e bocas de saída no lado baixo da curva","Taludes internos com o recuo de visibilidade do projeto","Sinalização de curva e de velocidade instalada antes da liberação"],"dica":"Ande a curva de carro antes de liberar, na velocidade de projeto e de noite com farol baixo. Se a curva \"puxa\" para fora ou o fim dela some antes da hora, alguma coisa está diferente do projeto."},
+sim:{html:()=>simWrap(rng('esV','Velocidade de projeto',30,120,10,60,'km/h')+rng('esE','Superelevação máxima e',2,12,0.5,8,'%')+rng('esF','Atrito lateral f',0.1,0.2,0.01,0.15,'','0,17 a 30 km/h · 0,15 a 60 · 0,13 a 100 · 0,11 a 120')+rng('esR','Raio da curva',30,800,5,150,'m')+rng('esAC','Ângulo central AC',5,90,1,40,'°')+rng('esFl','Atrito longitudinal fl',0.25,0.4,0.01,0.33,'','Pista molhada · cai com a velocidade')+rng('esI','Rampa do trecho',-8,8,0.5,0,'%','Negativo = descida')),
+update(){const V=V_('esV'),e=V_('esE')/100,f=V_('esF'),R=V_('esR'),AC=V_('esAC'),fl=V_('esFl'),i=V_('esI')/100,r=calc.estrada(V,e,f,R,AC,fl,i);
+ $('tiles').innerHTML=tiles([['Raio mínimo',br(r.Rmin,1)+' m'],['Raio adotado',br(R,0)+' m · '+(r.ok?'atende':'não atende'),1],['Desenvolvimento D',br(r.D,1)+' m'],['Visibilidade Dp',br(r.Dp,1)+' m',1]]);
+ const h=AC*Math.PI/360,Rp=Math.min(220/Math.sin(h),130/(1/Math.cos(h)-Math.cos(h)),900),O=[320,40+Rp/Math.cos(h)],P=t=>[O[0]+Rp*Math.sin(t),O[1]-Rp*Math.cos(t)],pc=P(-h),pt=P(h),pi=[O[0],O[1]-Rp/Math.cos(h)],ex=(a,b,k)=>[a[0]+(a[0]-b[0])*k,a[1]+(a[1]-b[1])*k];
+ const c1=r.ok?'steel':'neg',a1=ex(pc,pi,0.6),a2=ex(pt,pi,0.6);
+ let s=T_('CURVA CIRCULAR EM PLANTA (fora de escala)',20,18)+Ln(a1[0],a1[1],pi[0],pi[1],'line',2)+Ln(pi[0],pi[1],a2[0],a2[1],'line',2);
+ s+=Ln(O[0],O[1],pc[0],pc[1],'muted',1,'stroke-dasharray="3 3"')+Ln(O[0],O[1],pt[0],pt[1],'muted',1,'stroke-dasharray="3 3"');
+ s+=`<path d="M${pc[0].toFixed(1)} ${pc[1].toFixed(1)} A${Rp} ${Rp} 0 0 1 ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}" style="fill:none;stroke:var(--${c1});stroke-width:5"/>`;
+ s+=`<circle cx="${pc[0]}" cy="${pc[1]}" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="${pt[0]}" cy="${pt[1]}" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="${pi[0]}" cy="${pi[1]}" r="4" style="fill:var(--ink)"/>`;
+ s+=T(pc[0]-32,pc[1]+4,'PC','amber-ink','font-weight="600"')+T(pt[0]+10,pt[1]+4,'PT','amber-ink','font-weight="600"')+T(pi[0]+8,pi[1]-4,'PI','ink','font-weight="600"')+T(pc[0]+(O[0]-pc[0])*60/(O[1]-pc[1])+10,pc[1]+60,'R = '+br(R,0)+' m','muted','font-size="10"');
+ s+=T(20,226,'T = '+br(r.T,1)+' m · D = '+br(r.D,1)+' m · E = '+br(r.E,2)+' m · AC = '+br(AC,0)+'°','ink','font-size="10" font-weight="600"');
+ s+=T(20,244,'Rmín = '+br(r.Rmin,1)+' m → '+(r.ok?'raio atende':'raio abaixo do mínimo: aumente R ou reduza V'),r.ok?'pos':'neg','font-size="10" font-weight="600"');
+ $('draw').innerHTML=SVG(640,260,'Curva circular em planta com PC, PI, PT e raio',s);
+ $('memorial').textContent=`1) Rmín = V² / [127 × (e + f)] = ${V}² / [127 × (${br(e,3)} + ${br(f)})] = ${br(r.Rmin,1)} m
+2) R adotado = ${br(R,0)} m → ${r.ok?'atende':'NÃO atende'} ao raio mínimo
+3) T = R × tan(AC/2) = ${br(R,0)} × tan ${br(AC/2,1)}° = ${br(r.T,2)} m
+4) D = R × AC(rad) = ${br(R,0)} × ${br(AC*Math.PI/180,4)} = ${br(r.D,2)} m · E = R × (1/cos(AC/2) − 1) = ${br(r.E,2)} m
+5) Dp = 0,7 × ${V} + ${V}² / [255 × (${br(fl)} ${i<0?'−':'+'} ${br(Math.abs(i),3)})] = ${br(r.Dp,1)} m
+6) ${i<0?'Descida: a distância de parada aumenta':i>0?'Subida: a distância de parada diminui':'Trecho em nível'} · o motorista precisa enxergar ${br(r.Dp,0)} m à frente`;}}
+});

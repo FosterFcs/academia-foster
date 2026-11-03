@@ -566,14 +566,42 @@ const calc={
   // Microdrenagem: método racional + galeria circular a seção plena (Manning)
   racional(C,i,Aha){return C*i*Aha/360},
   galeria(Q,S,n=0.013){const D=(Q*n/(0.3117*Math.sqrt(S)))**(3/8),DN=[0.4,0.5,0.6,0.8,1.0,1.2,1.5,2.0].find(d=>d>=D)||null;
-    const Qp=DN?0.3117*DN**(8/3)*Math.sqrt(S)/n:0,v=DN?Qp/(Math.PI*DN*DN/4):0;return{D,DN,Qp,v,ok:!!DN&&v>=0.6&&v<=5}}
+    const Qp=DN?0.3117*DN**(8/3)*Math.sqrt(S)/n:0,v=DN?Qp/(Math.PI*DN*DN/4):0;return{D,DN,Qp,v,ok:!!DN&&v>=0.6&&v<=5}},
+  // CG-21 · Cargas (NBR 6120 / NBR 8681): carga de laje por m², combinação última normal e quase permanente
+  cargas(hcm,rev,parede,uso,psi2,faixa,gg=1.4,gq=1.4){const pp=25*hcm/100,g=pp+rev+parede,q=uso,p=g+q,pd=gg*g+gq*q,pqp=g+psi2*q;
+    return{pp,g,q,p,pd,pqp,lin:pd*faixa,linK:p*faixa}},
+  // CS-22 · Compactação: ensaio de Proctor (ajuste de parábola) e controle de campo
+  proctor(pts){const P=pts.map(([w,gh])=>[w,gh/(1+w/100)]),n=P.length;let S=[0,0,0,0,0],T=[0,0,0];
+    P.forEach(([x,y])=>{for(let k=0;k<5;k++)S[k]+=x**k;for(let k=0;k<3;k++)T[k]+=y*x**k});
+    const [c,b,a]=calc.resolver([[S[0],S[1],S[2]],[S[1],S[2],S[3]],[S[2],S[3],S[4]]],T),wot=-b/(2*a),gdmax=c+b*wot+a*wot*wot;
+    return{gd:P.map(p=>p[1]),a,b,c,wot,gdmax,valido:a<0&&wot>Math.min(...pts.map(p=>p[0]))&&wot<Math.max(...pts.map(p=>p[0]))}},
+  campo(gdmax,wot,gh,w,esp,tolw=2){const gd=gh/(1+w/100),GC=100*gd/gdmax,dw=w-wot;return{gd,GC,dw,okGC:GC>=esp-1e-9,okW:Math.abs(dw)<=tolw+1e-9,ok:GC>=esp-1e-9&&Math.abs(dw)<=tolw+1e-9}},
+  // HI-23 · Hidrologia: Kirpich, equação IDF e método racional
+  kirpich(Lkm,Hm){return 57*(Lkm**3/Hm)**0.385},
+  idf(K,a,b,c,T,t){return K*T**a/(t+b)**c},
+  bacia(Aha,C,Lkm,Hm,T,K,a,b,c){const tcK=calc.kirpich(Lkm,Hm),tc=Math.max(10,tcK),i=calc.idf(K,a,b,c,T,tc),Q=calc.racional(C,i,Aha);return{tcK,tc,i,Q,Ql:Q*1000}},
+  // ES-24 · Estradas: raio mínimo, elementos da curva circular e distância de visibilidade de parada
+  estrada(V,e,f,R,AC,fl,i){const Rmin=V*V/(127*(e+f)),r=AC*Math.PI/180,T=R*Math.tan(r/2),D=R*r,E=R*(1/Math.cos(r/2)-1),Dp=0.7*V+V*V/(255*(fl+i));
+    return{Rmin,T,D,E,Dp,ok:R>=Rmin-1e-9}},
+  // DE-25 · Desempenho térmico (NBR 15575-4 / NBR 15220): transmitância da parede
+  transmitancia(camadas,Rsi=0.13,Rse=0.04){const Rc=camadas.reduce((s,[e,l])=>s+e/l,0),RT=Rsi+Rc+Rse,U=1/RT;return{Rc,RT,U}},
+  limiteU(zona,alfa){return zona<=2?2.5:(alfa<=0.6?3.7:2.5)},
+  // ST-26 · Segurança: zona livre de queda e taxas de acidentes (NBR 14280)
+  zlq(talabarte,absorvedor,hD,margem,hAnc){const total=talabarte+absorvedor+hD+margem,abaixo=total-hAnc,queda=Math.max(0,talabarte-(hAnc-hD));return{total,abaixo,queda}},
+  taxas(acid,dias,hht){return{TF:acid*1e6/hht,TG:dias*1e6/hht}},
+  // PA-27 · Patologia: carbonatação x = k·√t e lei de Sitter
+  carbonatacao(k,c,idade){const x=k*Math.sqrt(idade),t=(c/k)**2;return{x,t,falta:t-idade,atingiu:x>=c}},
+  sitter(fase){return 5**fase},
+  // CF-28 · Cálculo e física: seção T (centroide, inércia e módulos resistentes)
+  secaoT(bf,hf,bw,hw){const A1=bf*hf,A2=bw*hw,y1=hw+hf/2,y2=hw/2,A=A1+A2,yc=(A1*y1+A2*y2)/A,h=hf+hw,
+    I=bf*hf**3/12+A1*(y1-yc)**2+bw*hw**3/12+A2*(y2-yc)**2;return{A,yc,I,h,Winf:I/yc,Wsup:I/(h-yc)}}
 };
 // CALC-END
 
 // Catálogo das disciplinas: carregado no início e pelo service worker.
 // Para adicionar uma disciplina: crie js/modulos/<id>.js, inclua a entrada aqui e em AREAS.
-const AREAS=[['Estruturas',['rm','is','ca','lj','pi','ac','md']],['Geotecnia',['gt','et','ma']],['Hidráulica e Instalações',['hd','ap','eg','rs','el']],['Construção e Gestão',['mc','or','pl']],['Topografia',['tp']],['Transportes',['pv']]];
-const PROX=['Cargas (NBR 6120)','Compactação de Solos','Hidrologia e Drenagem','Estradas','Desempenho (NBR 15575)','Segurança do Trabalho','Patologia das Construções','Cálculo e Física Aplicados'];
+const AREAS=[['Fundamentos',['cf']],['Estruturas',['cg','rm','is','ca','lj','pi','ac','md']],['Geotecnia',['gt','cs','et','ma']],['Hidráulica e Instalações',['hi','hd','ap','eg','rs','el']],['Construção e Gestão',['mc','or','pl','de','st','pa']],['Topografia',['tp']],['Transportes',['pv','es']]];
+const PROX=[];
 const CATALOGO=[
 {id:'rm',cod:'RM-01',nome:'Resistência dos Materiais',eyebrow:'RM-01 · Vigas biapoiadas',titulo:'Esforço cortante e momento fletor sem mistério',
 quiz:[
@@ -910,14 +938,142 @@ quiz:[{p:'O que o CBR mede?',o:['A cor do solo','A capacidade de suporte do solo
 {p:"Qual a principal causa de buracos (panelas) no pavimento?",o:["Água infiltrada combinada ao tráfego", "Sol", "Pintura", "Pouca carga"],c:0,e:"A água amolece as camadas e o tráfego arranca o revestimento."},
 {p:"Qual material é típico de base granular?",o:["Argila", "Areia de praia", "Brita graduada simples (BGS)", "Entulho sem triagem"],c:2,e:"A BGS tem CBR alto e boa drenagem."},
 {p:"O fator de veículo FV converte:",o:["Velocidade em tempo", "CBR em N", "Dinheiro em espessura", "A passagem de cada veículo em equivalentes do eixo padrão"],c:3,e:"Ele traduz cada tipo de caminhão em passadas do eixo de 8,2 t."},
-{p:"Qual a espessura máxima usual de uma camada compactada de solo ou brita?",o:["5 cm", "20 cm", "60 cm", "1 m"],c:1,e:"Camadas acima de cerca de 20 cm compactadas não ficam uniformes no fundo."}]}
+{p:"Qual a espessura máxima usual de uma camada compactada de solo ou brita?",o:["5 cm", "20 cm", "60 cm", "1 m"],c:1,e:"Camadas acima de cerca de 20 cm compactadas não ficam uniformes no fundo."}]},
+{id:'cg',cod:'CG-21',nome:"Cargas (NBR 6120)",eyebrow:"CG-21 · Ações nas estruturas · NBR 6120 e NBR 8681",titulo:"Quanto pesa cada metro quadrado da laje",
+quiz:[{p:"Qual o peso específico do concreto armado adotado pela NBR 6120?",o:["10 kN/m³", "25 kN/m³", "18 kN/m³", "78 kN/m³"],c:1,e:"O concreto armado é tomado com 25 kN/m³; o simples, com 24 kN/m³."},
+{p:"Qual o peso próprio de uma laje maciça de 12 cm?",o:["1,2 kN/m²", "12 kN/m²", "0,3 kN/m²", "3,0 kN/m²"],c:3,e:"25 kN/m³ × 0,12 m = 3,0 kN/m²."},
+{p:"O que é uma ação permanente (g)?",o:["Carga que atua durante praticamente toda a vida da estrutura, como peso próprio e revestimentos", "Carga de pessoas e móveis", "Carga de vento", "Carga só durante a obra"],c:0,e:"Peso próprio, revestimentos e paredes fixas são permanentes."},
+{p:"Qual a sobrecarga de uso usual para dormitórios e salas de residência?",o:["0,5 kN/m²", "5,0 kN/m²", "1,5 kN/m²", "10 kN/m²"],c:2,e:"A NBR 6120 indica 1,5 kN/m² para os ambientes de uso residencial."},
+{p:"Em kgf, 1 kN equivale aproximadamente a:",o:["1 kgf", "10 kgf", "100 kgf", "1.000 kgf"],c:2,e:"1 kN ≈ 102 kgf; na prática, cerca de 100 kgf."},
+{p:"Na combinação última normal usual, os coeficientes de g e q são:",o:["1,4 e 1,4", "1,0 e 1,0", "2,0 e 0,5", "1,1 e 1,1"],c:0,e:"A NBR 8681 e a NBR 6118 usam γg = γq = 1,4 na combinação normal mais comum."},
+{p:"Para que serve a combinação quase permanente?",o:["Dimensionar a ruptura", "Calcular o vento", "Calcular a fundação no estado limite último", "Verificar flechas e fissuras em serviço"],c:3,e:"Ela representa a carga que fica atuando por longos períodos, usada nos estados limites de serviço."},
+{p:"Uma laje tem g = 4,5 e q = 1,5 kN/m². Qual pd?",o:["6,0 kN/m²", "8,4 kN/m²", "4,5 kN/m²", "12,0 kN/m²"],c:1,e:"pd = 1,4 × (4,5 + 1,5) = 8,4 kN/m²."},
+{p:"Uma viga recebe uma faixa de 2 m de laje com pd = 8,4 kN/m². Qual a carga linear de cálculo?",o:["16,8 kN/m", "4,2 kN/m", "8,4 kN/m", "10,4 kN/m"],c:0,e:"Carga linear = 8,4 × 2 = 16,8 kN/m."},
+{p:"1.000 litros de água pesam aproximadamente:",o:["1 kN", "10 kN", "100 kN", "0,1 kN"],c:1,e:"1.000 L ≈ 1.000 kg ≈ 10 kN."},
+{p:"Por que um contrapiso muito grosso é um problema?",o:["Deixa a laje mais leve", "Diminui o vão", "Acrescenta peso permanente que o projeto pode não ter previsto", "Aumenta a armadura"],c:2,e:"8 a 10 cm de argamassa somam cerca de 1,7 a 2,1 kN/m²."},
+{p:"O fator ψ2 para residência na combinação quase permanente vale:",o:["1,0", "1,4", "0,0", "0,3"],c:3,e:"Para locais sem predominância de pesos fixos, como residências, ψ2 = 0,3."},
+{p:"Escritório tem sobrecarga maior ou menor que residência?",o:["Menor (0,5 kN/m²)", "Igual", "Não tem sobrecarga", "Maior (2,5 kN/m²)"],c:3,e:"Escritórios usam 2,5 kN/m², contra 1,5 kN/m² das residências."},
+{p:"Transformar um quarto em biblioteca ou depósito exige:",o:["Verificação da estrutura, porque a sobrecarga de uso aumenta muito", "Nada, a carga é a mesma", "Só trocar o piso", "Só pintar"],c:0,e:"Biblioteca e depósito têm sobrecargas bem maiores que dormitório."},
+{p:"Qual a unidade usual de carga distribuída em laje?",o:["kN", "kN/m²", "kN/m", "kN·m"],c:1,e:"Carga por área é dada em kN/m²; na viga, por comprimento, em kN/m."}]},
+{id:'cs',cod:'CS-22',nome:"Compactação de Solos",eyebrow:"CS-22 · Ensaio de Proctor · Controle de campo",titulo:"Quando a camada de aterro está bem compactada",
+quiz:[{p:"O que a compactação retira do solo?",o:["Os grãos de areia", "Toda a água", "Ar dos vazios", "A argila"],c:2,e:"Compactar aproxima os grãos e expulsa o ar, aumentando a densidade."},
+{p:"O ensaio de Proctor determina:",o:["A umidade ótima e o peso específico seco máximo", "O CBR do asfalto", "A resistência do concreto", "O nível do lençol freático"],c:0,e:"A curva γd × w tem o topo na umidade ótima."},
+{p:"Qual a fórmula do peso específico seco?",o:["γd = γh × (1 + w)", "γd = γh / (1 + w)", "γd = γh − w", "γd = w / γh"],c:1,e:"Divide-se o peso úmido por (1 + w), com w em fração."},
+{p:"Um solo tem γh = 20,0 kN/m³ e w = 15%. Qual γd?",o:["23,0 kN/m³", "5,0 kN/m³", "20,0 kN/m³", "17,39 kN/m³"],c:3,e:"20,0 / 1,15 = 17,39 kN/m³."},
+{p:"O que é o grau de compactação (GC)?",o:["A umidade do solo", "O número de passadas do rolo", "A espessura da camada", "A razão entre o γd do campo e o γd máximo do laboratório"],c:3,e:"GC = 100 × γd,campo / γd,máx."},
+{p:"Qual GC é usual para base e sub-base de pavimento?",o:["50%", "100%", "80%", "120%"],c:1,e:"Bases e sub-bases costumam exigir GC ≥ 100% do Proctor especificado."},
+{p:"Compactando no ramo úmido, muito acima da ótima, o que acontece?",o:["A água ocupa os vazios e o solo não densifica, podendo \"borrachudar\"", "O solo fica mais denso", "Nada muda", "O GC passa de 100% com facilidade"],c:0,e:"Com água em excesso, a energia do rolo vira pressão na água, não aperto nos grãos."},
+{p:"Aumentar a energia de compactação (Proctor modificado) faz:",o:["γd,máx diminuir", "A umidade ótima aumentar", "γd,máx aumentar e a umidade ótima diminuir", "A curva sumir"],c:2,e:"Mais energia desloca o pico para cima e para a esquerda."},
+{p:"Qual a espessura máxima usual de uma camada compactada?",o:["1 m", "Cerca de 20 cm", "60 cm", "2 cm"],c:1,e:"Camadas grossas ficam fofas no fundo, onde a energia do rolo não chega."},
+{p:"Qual ensaio de campo mede o peso específico da camada?",o:["Slump", "Rompimento de corpo de prova", "Frasco de areia", "SPT"],c:2,e:"O frasco de areia (ou o densímetro nuclear) mede γh no campo."},
+{p:"γd,campo = 17,35 e γd,máx = 17,80 kN/m³. Qual o GC?",o:["102,6%", "89,0%", "100%", "97,4%"],c:3,e:"17,35 / 17,80 = 0,974."},
+{p:"Tolerância usual de umidade no campo em relação à ótima:",o:["± 2 pontos percentuais", "± 20 pontos", "Não há tolerância", "± 0,1 ponto"],c:0,e:"A umidade costuma ser controlada dentro de cerca de ± 2 pontos da ótima."},
+{p:"Para que serve um trecho experimental?",o:["Definir o número de passadas do rolo que atinge o GC exigido", "Testar a pintura", "Medir a chuva", "Escolher a cor do asfalto"],c:0,e:"Varia-se o número de passadas e mede-se o GC resultante."},
+{p:"Qual material não deve ir no aterro compactado?",o:["Solo especificado em projeto", "Solo com matéria orgânica e raízes", "Brita graduada", "Areia argilosa aprovada"],c:1,e:"Matéria orgânica se decompõe e gera recalque."},
+{p:"Camada com GC aprovado mas umidade 3 pontos acima da ótima deve:",o:["Ser liberada", "Receber mais água", "Ser aerada, voltar perto da ótima e ser recompactada", "Ser coberta com asfalto"],c:2,e:"A umidade fora da faixa também reprova a camada."}]},
+{id:'hi',cod:'HI-23',nome:"Hidrologia e Drenagem",eyebrow:"HI-23 · Chuva de projeto · Método racional",titulo:"Quanta água chega na boca de lobo",
+quiz:[{p:"O que é tempo de concentração?",o:["O tempo de duração da obra", "O tempo de uma chuva fraca", "O tempo para encher a caixa d'água", "O tempo que a água do ponto mais distante leva para chegar à saída da bacia"],c:3,e:"A partir de tc, toda a bacia contribui ao mesmo tempo na saída."},
+{p:"No método racional, Q = C × i × A / 360 dá Q em:",o:["L/s, com A em m²", "m³/s, com i em mm/h e A em ha", "m³/h", "mm/h"],c:1,e:"Com i em mm/h e A em hectares, o divisor 360 leva a m³/s."},
+{p:"O coeficiente C representa:",o:["A cor do terreno", "A temperatura", "A fração da chuva que escorre superficialmente", "O número de bocas de lobo"],c:2,e:"Superfícies impermeáveis têm C alto, perto de 0,9."},
+{p:"Qual superfície tem maior C?",o:["Telhado e asfalto", "Gramado", "Mata", "Solo arenoso cultivado"],c:0,e:"Telhado e asfalto escoam quase toda a chuva."},
+{p:"O que é período de retorno?",o:["O intervalo médio, em anos, em que a chuva é igualada ou superada", "A duração da chuva", "O tempo de volta do caminhão", "A vida útil do tubo"],c:0,e:"T = 10 anos significa probabilidade de 10% em cada ano."},
+{p:"A equação IDF relaciona:",o:["Inércia, deformação e força", "Idade, diâmetro e fluxo", "Intensidade, duração e frequência da chuva", "Isolamento, densidade e forma"],c:2,e:"Ela dá a intensidade para uma duração e um período de retorno."},
+{p:"Quanto maior a duração considerada da chuva, a intensidade média:",o:["Aumenta", "Diminui", "Não muda", "Fica infinita"],c:1,e:"Chuvas curtas são as mais intensas; as longas têm intensidade média menor."},
+{p:"A fórmula de Kirpich estima:",o:["A vazão", "O coeficiente C", "O diâmetro do tubo", "O tempo de concentração"],c:3,e:"tc = 57 × (L³/H)^0,385, com L em km e H em m."},
+{p:"Qual o tempo de concentração mínimo usual em microdrenagem?",o:["1 segundo", "24 horas", "Cerca de 10 minutos", "1 ano"],c:2,e:"Adota-se tc ≥ 10 min (5 min em telhados pela NBR 10844)."},
+{p:"500 m² de telhado correspondem a:",o:["5 ha", "0,5 ha", "50 ha", "0,05 ha"],c:3,e:"1 ha = 10.000 m²."},
+{p:"Até que tamanho de bacia o método racional é usual?",o:["Cerca de 2 km²", "500 km²", "Qualquer tamanho", "Só 1 m²"],c:0,e:"Para bacias maiores, usa-se hidrograma unitário."},
+{p:"Urbanizar um pasto, mantendo a chuva, faz a vazão:",o:["Diminuir", "Aumentar, porque C sobe e o tc diminui", "Ficar igual", "Zerar"],c:1,e:"Mais superfície impermeável e escoamento mais rápido."},
+{p:"Por que não copiar a IDF de outra cidade?",o:["Porque é proibido", "Porque o regime de chuvas é local e os parâmetros mudam", "Porque a fórmula é a mesma", "Porque não existe IDF"],c:1,e:"Cada posto pluviométrico tem a sua equação."},
+{p:"O que um reservatório de detenção faz?",o:["Aumenta a vazão", "Trata esgoto", "Guarda a água da chuva e solta aos poucos, reduzindo o pico de vazão", "Abastece a cidade"],c:2,e:"Ele amortece o pico que o loteamento criaria."},
+{p:"Para que serve um dissipador de energia na saída da galeria?",o:["Aumentar a velocidade", "Gerar energia elétrica", "Filtrar a água", "Evitar erosão na saída"],c:3,e:"A água em alta velocidade abre crateras sem proteção."}]},
+{id:'es',cod:'ES-24',nome:"Estradas",eyebrow:"ES-24 · Projeto geométrico · Curva horizontal",titulo:"Qual o raio mínimo e quanto o motorista precisa enxergar",
+quiz:[{p:"Qual a função da superelevação?",o:["Ajudar a segurar o veículo na curva, inclinando a pista para dentro", "Drenar a reta", "Enfeitar a estrada", "Reduzir o atrito"],c:0,e:"Ela equilibra parte da força centrífuga."},
+{p:"Qual a fórmula do raio mínimo?",o:["Rmín = V / 127", "Rmín = 127 × V × e", "Rmín = V² / [127 × (e + f)]", "Rmín = V² × f"],c:2,e:"V em km/h, e e f em m/m."},
+{p:"V = 60 km/h, e = 0,08 e f = 0,15. Qual Rmín?",o:["60 m", "300 m", "26 m", "123 m"],c:3,e:"3600 / (127 × 0,23) = 123,2 m."},
+{p:"O que é o PC?",o:["O ponto de interseção das tangentes", "O ponto onde a tangente termina e a curva começa", "O centro da curva", "O fim da curva"],c:1,e:"PC é o ponto de curva; PT, o ponto de tangente."},
+{p:"O que é o PI?",o:["O início da curva", "O ponto de interseção das duas tangentes", "O ponto de inflexão do greide", "O ponto de iluminação"],c:1,e:"É onde os prolongamentos das retas se encontram."},
+{p:"A tangente externa vale:",o:["T = R × AC", "T = R / 2", "T = AC / R", "T = R × tan(AC/2)"],c:3,e:"É a distância do PC (ou PT) ao PI."},
+{p:"O desenvolvimento da curva é:",o:["D = R + AC", "D = 2R", "D = R × AC, com AC em radianos", "D = R × AC em graus, sem conversão"],c:2,e:"Comprimento do arco circular."},
+{p:"Qual o limite usual de superelevação em rodovias rurais comuns?",o:["8%", "50%", "1%", "25%"],c:0,e:"O DNER usa 8% como valor comum e 12% em casos especiais."},
+{p:"Distância de visibilidade de parada é:",o:["A largura da pista", "O comprimento da curva", "A distância entre placas", "A distância para perceber, reagir e frear até parar"],c:3,e:"Dp = 0,7 V + V² / [255 (fl ± i)]."},
+{p:"Numa descida, a distância de parada:",o:["Aumenta", "Diminui", "Não muda", "Zera"],c:0,e:"A rampa negativa reduz o termo (fl + i) do denominador."},
+{p:"O que acontece com o atrito lateral f quando a velocidade aumenta?",o:["Aumenta", "Diminui", "Fica constante", "Dobra"],c:1,e:"De cerca de 0,17 a 30 km/h para 0,11 a 120 km/h."},
+{p:"Para que serve a curva de transição?",o:["Separar faixas", "Drenar a pista", "Introduzir a curvatura e a superelevação de forma gradual", "Marcar o quilômetro"],c:2,e:"Evita a mudança brusca entre reta e curva."},
+{p:"O termo 0,7 × V da distância de parada representa:",o:["A frenagem", "A largura", "A distância percorrida durante o tempo de reação", "O atrito"],c:2,e:"Com cerca de 2,5 s de reação, a distância é V/3,6 × 2,5 ≈ 0,7 V."},
+{p:"Uma curva de 200 m é adequada para 80 km/h com e = 0,08 e f = 0,14?",o:["Sim, sobra muito", "Sim, o mínimo é 50 m", "Depende só da cor do asfalto", "Não, o mínimo é cerca de 229 m"],c:3,e:"6400 / (127 × 0,22) = 229 m."},
+{p:"O que pode reduzir a visibilidade dentro de uma curva?",o:["Talude de corte e vegetação no lado interno", "Sinalização horizontal", "A superelevação correta", "A drenagem"],c:0,e:"Obstáculos no lado interno tapam a vista do motorista."}]},
+{id:'de',cod:'DE-25',nome:"Desempenho (NBR 15575)",eyebrow:"DE-25 · Norma de desempenho · Vida útil e conforto térmico",titulo:"A parede atende ao desempenho térmico?",
+quiz:[{p:"A NBR 15575 é conhecida como:",o:["Norma de concreto", "Norma de desempenho de edificações habitacionais", "Norma de instalações elétricas", "Norma de topografia"],c:1,e:"Ela fixa requisitos de desempenho para o uso do imóvel."},
+{p:"Qual a VUP mínima da estrutura?",o:["5 anos", "13 anos", "100 anos obrigatoriamente", "50 anos"],c:3,e:"A estrutura pede vida útil de projeto mínima de 50 anos."},
+{p:"Qual a VUP mínima da vedação vertical externa?",o:["40 anos", "10 anos", "3 anos", "200 anos"],c:0,e:"Fachadas: no mínimo 40 anos."},
+{p:"O que é transmitância térmica (U)?",o:["A cor da parede", "A resistência mecânica", "O fluxo de calor por m² para cada grau de diferença de temperatura", "A espessura do reboco"],c:2,e:"Unidade W/m²K; quanto menor, mais a parede isola."},
+{p:"Como se calcula a resistência térmica de uma camada?",o:["R = λ / e", "R = e × λ", "R = e / λ", "R = 1 / e"],c:2,e:"Espessura dividida pela condutividade."},
+{p:"Qual o valor de RT para U = 2,5 W/m²K?",o:["0,40 m²K/W", "2,5 m²K/W", "0,25 m²K/W", "4,0 m²K/W"],c:0,e:"RT = 1/U = 0,40."},
+{p:"As resistências superficiais usadas em parede são:",o:["Rsi = 1,3 e Rse = 4", "Rsi = 0 e Rse = 0", "Rsi = 0,04 e Rse = 0,13", "Rsi = 0,13 e Rse = 0,04 m²K/W"],c:3,e:"Valores da NBR 15220 para fluxo horizontal."},
+{p:"O que é absortância (α)?",o:["A umidade do bloco", "A fração da radiação solar absorvida pela superfície", "A permeabilidade", "A dureza"],c:1,e:"Cores escuras absorvem mais: α alto."},
+{p:"No procedimento simplificado, zona 3 com cor escura (α > 0,6) exige:",o:["U ≤ 2,5 W/m²K", "U ≤ 3,7 W/m²K", "U ≤ 10 W/m²K", "Nada"],c:0,e:"Com α > 0,6 o limite cai para 2,5."},
+{p:"Por que concreto de 10 cm tende a não atender ao U?",o:["Porque é pesado", "Porque o concreto conduz muito calor (λ alto) e a espessura é pequena", "Porque é cinza", "Porque não tem reboco colorido"],c:1,e:"λ ≈ 1,75 W/mK dá U ≈ 4,4 W/m²K."},
+{p:"Trocar a cor da fachada de clara para escura pode:",o:["Melhorar o isolamento", "Não ter efeito", "Fazer a parede deixar de atender ao desempenho térmico", "Aumentar a resistência estrutural"],c:2,e:"A absortância muda o limite de U."},
+{p:"Qual documento a norma exige que seja entregue ao usuário?",o:["Nota fiscal do cimento", "Projeto de fundação impresso", "Diário de obra", "Manual de uso, operação e manutenção"],c:3,e:"A vida útil depende da manutenção descrita no manual."},
+{p:"Qual a VUP mínima dos pisos internos?",o:["50 anos", "2 anos", "100 anos", "13 anos"],c:3,e:"Pisos internos: no mínimo 13 anos."},
+{p:"Quando o procedimento simplificado não atende, uma saída é:",o:["Comprovar o desempenho por simulação computacional", "Ignorar a norma", "Trocar a cor do telhado só", "Retirar o reboco"],c:0,e:"A simulação avalia o edifício como um todo."},
+{p:"Concreto celular autoclavado tem λ:",o:["Alto, isolando pior", "Baixo, isolando melhor que o concreto comum", "Igual ao aço", "Zero"],c:1,e:"λ ≈ 0,17 W/mK, cerca de dez vezes menor que o do concreto comum."}]},
+{id:'st',cod:'ST-26',nome:"Segurança do Trabalho",eyebrow:"ST-26 · NR-35 e NR-18 · Zona livre de queda",titulo:"O cinto vai segurar antes do chão?",
+quiz:[{p:"A NR-35 se aplica a trabalhos acima de:",o:["50 cm", "10 m", "2 m do nível inferior", "Qualquer altura"],c:2,e:"Trabalho em altura é a atividade acima de 2 m com risco de queda."},
+{p:"O que vem primeiro na hierarquia de proteção contra quedas?",o:["Proteção coletiva, como guarda-corpo", "Cinto de segurança", "Capacete", "Luvas"],c:0,e:"O EPI é a última barreira."},
+{p:"Qual a altura do travessão superior do guarda-corpo pela NR-18?",o:["0,50 m", "1,20 m", "2,00 m", "0,90 m"],c:1,e:"Travessão superior a 1,20 m, com intermediário e rodapé."},
+{p:"Qual a carga horária do treinamento inicial da NR-35?",o:["1 hora", "40 horas", "Não tem treinamento", "8 horas"],c:3,e:"Treinamento teórico e prático de 8 h, com reciclagem bienal."},
+{p:"Com que frequência se faz a reciclagem periódica da NR-35?",o:["A cada 10 anos", "Todo mês", "Nunca", "A cada 2 anos"],c:3,e:"E também quando muda o procedimento ou após afastamento longo."},
+{p:"O que é a zona livre de queda?",o:["A área de vivência", "O espaço livre necessário abaixo do trabalhador para o sistema parar a queda", "O refeitório", "A faixa de domínio"],c:1,e:"Inclui talabarte, absorvedor, altura do corpo e margem."},
+{p:"Onde é melhor posicionar a ancoragem?",o:["Acima da cabeça do trabalhador", "Nos pés", "No chão do andar de baixo", "Em qualquer vergalhão"],c:0,e:"Ancoragem alta reduz a queda livre e o fator de queda."},
+{p:"Talabarte de 1,8 m ancorado nos pés, engate a 1,5 m: qual a queda livre?",o:["1,8 m", "0,3 m", "3,3 m", "1,5 m"],c:2,e:"1,8 − (0 − 1,5) = 3,3 m."},
+{p:"Vergalhão de espera serve como ponto de ancoragem?",o:["Sim, sempre", "Não, a ancoragem precisa ser dimensionada para o impacto", "Só se for de 10 mm", "Só à noite"],c:1,e:"Pontos de ancoragem são definidos e dimensionados por profissional habilitado."},
+{p:"Como se calcula a taxa de frequência (NBR 14280)?",o:["TF = acidentes / dias", "TF = HHT / acidentes", "TF = acidentes × 1.000.000 / HHT", "TF = dias perdidos × 100"],c:2,e:"É o número de acidentes por milhão de horas-homem."},
+{p:"3 acidentes em 120.000 HHT dão TF de:",o:["3", "360", "0,025", "25"],c:3,e:"3 × 10⁶ / 120.000 = 25."},
+{p:"A taxa de gravidade mede:",o:["Os dias perdidos por milhão de horas trabalhadas", "O número de acidentes", "A altura da queda", "A idade dos trabalhadores"],c:0,e:"TG = dias perdidos × 10⁶ / HHT."},
+{p:"O que é um trava-quedas retrátil?",o:["Dispositivo que recolhe o cabo e trava em poucos centímetros numa queda", "Um tipo de capacete", "Uma escada", "Uma tela de fachada"],c:0,e:"Ele reduz muito a queda livre e a zona livre necessária."},
+{p:"Antes de um trabalho em altura não rotineiro, é obrigatório:",o:["Apenas avisar o colega", "Análise de risco e permissão de trabalho", "Tirar o guarda-corpo", "Nada"],c:1,e:"A NR-35 exige análise de risco e, para atividades não rotineiras, permissão de trabalho."},
+{p:"Por que é preciso um plano de resgate?",o:["Porque é bonito", "Porque substitui o cinto", "Porque quem fica suspenso no cinto precisa ser retirado rapidamente", "Porque dispensa treinamento"],c:2,e:"A suspensão prolongada no cinto é perigosa."}]},
+{id:'pa',cod:'PA-27',nome:"Patologia das Construções",eyebrow:"PA-27 · Carbonatação · Fissuras · Lei de Sitter",titulo:"Quanto tempo até a armadura começar a enferrujar",
+quiz:[{p:"O que é a carbonatação do concreto?",o:["A cura do concreto", "A pintura da estrutura", "O endurecimento do aço", "Reação do CO₂ do ar com o concreto, que baixa o pH"],c:3,e:"Com pH menor, o aço perde a proteção natural."},
+{p:"Qual a lei de avanço da carbonatação?",o:["x = k × t²", "x = k × √t", "x = k / t", "x = k + t"],c:1,e:"A profundidade cresce com a raiz quadrada do tempo."},
+{p:"k = 4 mm/√ano e t = 25 anos: qual a profundidade carbonatada?",o:["100 mm", "4 mm", "20 mm", "10 mm"],c:2,e:"4 × √25 = 4 × 5 = 20 mm."},
+{p:"Cobrimento de 25 mm e k = 4: em quanto tempo a frente chega à armadura?",o:["Cerca de 39 anos", "6 anos", "100 anos", "25 anos"],c:0,e:"t = (25/4)² = 39,1 anos."},
+{p:"O que acontece quando a frente de carbonatação alcança a armadura?",o:["O aço fica despassivado e pode começar a corroer", "O concreto fica mais forte", "Nada", "A viga fica mais leve"],c:0,e:"Com umidade e oxigênio, a corrosão pode começar."},
+{p:"Por que a ferrugem trinca o concreto?",o:["Porque é ácida", "Porque é leve", "Porque ocupa várias vezes o volume do aço original", "Porque esfria o concreto"],c:2,e:"A expansão empurra e lasca o cobrimento."},
+{p:"Qual reagente mostra a profundidade carbonatada?",o:["Água sanitária", "Fenolftaleína", "Vinagre", "Cal"],c:1,e:"A parte não carbonatada fica rosa; a carbonatada, incolor."},
+{p:"Pela lei de Sitter, corrigir na fase de manutenção corretiva custa, em relação ao projeto:",o:["O mesmo", "2 vezes", "10.000 vezes", "Cerca de 125 vezes"],c:3,e:"O custo cresce 5 vezes a cada fase: 1, 5, 25, 125."},
+{p:"Qual a abertura máxima de fissura na NBR 6118 para concreto armado em CAA I?",o:["4 mm", "0,01 mm", "0,4 mm", "2 mm"],c:2,e:"CAA I: 0,4 mm; II e III: 0,3 mm; IV: 0,2 mm."},
+{p:"Reduzir o cobrimento de 25 para 15 mm, com k = 4, muda o tempo até a armadura de 39 para:",o:["35 anos", "60 anos", "Não muda", "Cerca de 14 anos"],c:3,e:"(15/4)² = 14,1 anos: o tempo cai com o quadrado."},
+{p:"Qual a forma mais barata de garantir o cobrimento?",o:["Espaçadores corretos na armadura", "Pintura no fim da obra", "Mais cimento na argamassa", "Reboco grosso"],c:0,e:"Espaçador custa pouco e decide a durabilidade."},
+{p:"Acrescentar água no concreto na obra:",o:["Melhora a durabilidade", "Aumenta a porosidade e acelera a carbonatação", "Aumenta a resistência", "Não tem efeito"],c:1,e:"Mais água, mais poros e menor resistência."},
+{p:"Uma trinca com selo de gesso rompido após semanas indica:",o:["Trinca estabilizada", "Trinca ativa, que ainda se movimenta", "Erro do selo", "Que pode fechar só com massa"],c:1,e:"Trinca ativa precisa de diagnóstico antes de reparo."},
+{p:"Na análise de uma patologia, a origem é:",o:["A cor da trinca", "O sintoma visível", "A fase em que o problema nasceu (projeto, execução, materiais ou uso)", "A ferramenta do reparo"],c:2,e:"Sintoma, mecanismo, origem e causa formam o diagnóstico."},
+{p:"Fissura de retração plástica costuma vir de:",o:["Excesso de armadura", "Recalque de fundação", "Corrosão antiga", "Cura malfeita, com o concreto secando rápido"],c:3,e:"Sol e vento nos primeiros dias evaporam a água da superfície."}]},
+{id:'cf',cod:'CF-28',nome:"Cálculo e Física Aplicados",eyebrow:"CF-28 · Centroide · Inércia · Steiner",titulo:"Por que a viga em pé aguenta mais",
+quiz:[{p:"O que é o centroide de uma seção?",o:["O ponto de equilíbrio da área da seção", "O ponto mais alto", "O canto da seção", "O centro da armadura"],c:0,e:"Na flexão simples, a linha neutra passa pelo centroide."},
+{p:"Momento de inércia de um retângulo em torno do próprio centro:",o:["I = b × h", "I = b² × h / 2", "I = b × h³ / 12", "I = b × h² / 12"],c:2,e:"A altura entra ao cubo."},
+{p:"Dobrar a altura de uma viga retangular multiplica a inércia por:",o:["2", "4", "16", "8"],c:3,e:"A altura entra ao cubo: (2h)³ = 8h³."},
+{p:"Dobrar a largura de uma viga retangular multiplica a inércia por:",o:["8", "2", "4", "1"],c:1,e:"A largura entra na primeira potência."},
+{p:"O teorema de Steiner serve para:",o:["Calcular a área", "Levar a inércia de uma parte para um eixo paralelo", "Achar a armadura", "Calcular a carga"],c:1,e:"I = Ii + A × d²."},
+{p:"Viga 20 × 40 cm: qual a inércia?",o:["800 cm⁴", "32.000 cm⁴", "1.066.667 cm⁴", "106.667 cm⁴"],c:3,e:"20 × 40³ / 12 = 106.667 cm⁴."},
+{p:"Módulo resistente W é:",o:["Área vezes altura", "Momento vezes área", "I dividido pela distância do centroide à borda", "Inércia vezes altura"],c:2,e:"Com ele, σ = M / W."},
+{p:"A tensão de flexão é dada por:",o:["σ = M × y / I", "σ = M × I", "σ = I / M", "σ = M + y"],c:0,e:"Ela cresce linearmente a partir da linha neutra."},
+{p:"Na flexão positiva, a parte de baixo da viga fica:",o:["Comprimida", "Sem tensão", "Torcida", "Tracionada"],c:3,e:"Abaixo da linha neutra a fibra se alonga."},
+{p:"1 kN/cm² equivale a:",o:["10 MPa", "1 MPa", "100 MPa", "0,1 MPa"],c:0,e:"1 kN/cm² = 10 N/mm² = 10 MPa."},
+{p:"Mesa 600 cm² com centro a 45 cm e alma 800 cm² a 20 cm: qual yc?",o:["32,5 cm", "30,71 cm", "25 cm", "45 cm"],c:1,e:"(600 × 45 + 800 × 20) / 1400 = 30,71 cm."},
+{p:"Caibro 6 × 16 cm em pé, comparado deitado, é mais rígido em cerca de:",o:["2 vezes", "Igual", "7 vezes", "16 vezes"],c:2,e:"2.048 / 288 ≈ 7,1."},
+{p:"Onde um furo para tubulação prejudica menos a viga à flexão?",o:["Na borda inferior", "Na borda superior", "Perto do meio da altura (linha neutra)", "Em qualquer lugar igualmente"],c:2,e:"As tensões de flexão são máximas nas bordas e quase nulas na linha neutra."},
+{p:"50 kN·m equivalem a:",o:["50 kN·cm", "500.000 kN·cm", "0,5 kN·cm", "5.000 kN·cm"],c:3,e:"Como 1 m = 100 cm, 50 kN·m = 5.000 kN·cm."},
+{p:"Por que a viga T é mais eficiente que a retangular da mesma alma?",o:["Porque a mesa põe material longe do centroide, aumentando a inércia", "Porque é mais leve", "Porque usa menos aço sempre", "Porque não tem linha neutra"],c:0,e:"Material afastado do centroide aumenta muito o I."}]}
 ];
 
 // Vídeo-aulas no YouTube (canal Academia Foster). Para incluir uma aula nova, coloque aqui o código do link youtu.be/CODIGO.
 const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns',mc:'scWew_sg_cU',tp:'olD9dmAPC7E',or:'zVRDJ39NCq0',lj:'qHUNz6HJ19o',ma:'wHF61AL737E'};
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.8.3';
+const VERSAO_APP='1.8.4';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -988,7 +1144,7 @@ function renderInicio(){
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">Início · ${MODS.length} disciplinas em ${AREAS.length} áreas</span><h2>O que você quer aprender hoje?</h2></div>
   <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, três exemplos resolvidos (do básico ao caso de obra), simulador com desenho e memorial de cálculo, a aba <b>Na obra</b> com erros comuns e checklist de fiscalização, um quiz de 15 questões e certificado de 4 horas para quem passar na prova. No fim, teste tudo no simulado geral.</p>
   <div class="areas">${AREAS.map(([n,ids])=>`<div class="area"><h3>${n}</h3>${ids.map(id=>{const m=modById(id);return `<button class="card-mod" data-m="${id}"><span class="cod">${m.cod}</span><b>${m.nome}</b>${tagMod(m)}<small>${m.titulo}</small></button>`}).join('')}</div>`).join('')}</div>
-  <h3>Próximas disciplinas</h3><div class="presets">${PROX.map(p=>`<span class="chip off">${p}</span>`).join('')}</div>
+  ${PROX.length?`<h3>Próximas disciplinas</h3><div class="presets">${PROX.map(p=>`<span class="chip off">${p}</span>`).join('')}</div>`:''}
   <div><button class="btn" data-m="sim">Fazer o simulado geral</button></div></section>`;
   bindNav($('main'));
 }
@@ -2938,6 +3094,403 @@ update(){const porV=$('pvM').value==='v',N=porV?calc.numeroN(V_('pvV'),V_('pvA')
 ${r.temRef?`3) Hn (CBR ${cr}) = ${br(r.Hn,1)} cm → h20 ≥ ${br(r.Hn,1)} − ${br(r.R*r.KR,1)} − ${r.B} → h20 = ${r.h20} cm
 4) Hm (CBR ${V_('pvC')}) = ${br(r.Hm,1)} cm → reforço ≥ ${br(r.Hm,1)} − ${br(r.R*r.KR+r.B+r.h20,1)} → hn = ${r.hn} cm`:`3) Hm (CBR ${V_('pvC')}) = ${br(r.Hm,1)} cm → h20 ≥ ${br(r.Hm,1)} − ${br(r.R*r.KR,1)} − ${r.B} → h20 = ${r.h20} cm`}
 Total: ${br(r.total,1)} cm · Base e sub-base consideradas granulares (K = 1,0).`;}}
+});
+
+// CG-21 · Cargas nas Estruturas (NBR 6120 / NBR 8681)
+Academia.modulo('cg',{
+teoria:`<p>Antes de calcular qualquer viga, laje ou pilar, alguém precisa responder: <b>quanto peso essa peça vai carregar?</b> Errar a carga é errar tudo o que vem depois. A NBR 6120 dá os pesos dos materiais e as sobrecargas de uso, e a NBR 8681 diz como somar tudo com segurança.</p>
+<figure class="fig"><svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Camadas de carga sobre uma laje: peso próprio, revestimento, paredes e uso">
+<rect x="60" y="150" width="380" height="22" style="fill:var(--line);stroke:var(--ink);stroke-width:1.5"/><text x="455" y="165" style="fill:var(--ink)" font-size="10">laje (peso próprio)</text>
+<rect x="60" y="138" width="380" height="12" style="fill:var(--soil-fill);stroke:var(--ink);stroke-width:1"/><text x="455" y="148" style="fill:var(--ink)" font-size="10">contrapiso e piso</text>
+<rect x="110" y="70" width="14" height="68" style="fill:var(--neg-fill);stroke:var(--neg);stroke-width:1.5"/><text x="130" y="82" style="fill:var(--neg)" font-size="10">parede</text>
+<circle cx="300" cy="96" r="9" style="fill:var(--steel)"/><rect x="292" y="106" width="16" height="32" rx="5" style="fill:var(--steel)"/><circle cx="345" cy="100" r="8" style="fill:var(--steel)"/><rect x="338" y="109" width="14" height="29" rx="5" style="fill:var(--steel)"/>
+<text x="285" y="78" style="fill:var(--steel)" font-size="10">uso (pessoas, móveis)</text>
+<path d="M70 190 L70 178 M430 190 L430 178" style="stroke:var(--ink);stroke-width:1.5"/><text x="250" y="200" style="fill:var(--muted)" text-anchor="middle" font-size="10">tudo isso desce para vigas, pilares e fundação</text>
+<text x="460" y="96" style="fill:var(--amber-ink)" font-size="10" font-weight="600">g = permanente</text><text x="460" y="114" style="fill:var(--steel)" font-size="10" font-weight="600">q = variável</text></svg><figcaption>Camadas de carga sobre uma laje: peso próprio, revestimento, paredes e uso</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Carga permanente (g)</h4><p>Fica lá a vida toda: o peso da própria estrutura, contrapiso, piso, reboco, paredes e forro.</p></div>
+<div class="conceito"><h4>Carga variável (q)</h4><p>Vai e vem com o uso: pessoas, móveis, veículos. A NBR 6120 dá o valor mínimo por tipo de ambiente.</p></div>
+<div class="conceito"><h4>Combinação</h4><p>Cada carga é multiplicada por um coeficiente de segurança (γ) antes de dimensionar. É a carga de cálculo.</p></div></div>
+<h3>Pesos e sobrecargas que você vai usar muito</h3>
+<div class="formula">Concreto armado: 25 kN/m³ · Argamassa de cimento e areia: 21 kN/m³ · Peso próprio da laje: g = 25 × h (h em m)</div>
+<div class="formula">Sobrecarga de uso (valores usuais): residência 1,5 kN/m² · escritório 2,5 kN/m² · garagem de carros 3,0 kN/m²</div>
+<h3>Como somar (NBR 8681)</h3>
+<div class="formula">Valor característico: p = g + q</div>
+<div class="formula">Combinação última normal (dimensionamento): pd = 1,4·g + 1,4·q</div>
+<div class="formula">Quase permanente (flechas e fissuras): pqp = g + ψ2·q   (ψ2 = 0,3 residência · 0,4 escritório · 0,6 garagem)</div>
+<div class="formula">Na viga que recebe a laje: carga linear = carga por m² × largura de influência (m)</div>
+<div class="dica"><b>Unidade que salva obra</b>1 kN ≈ 100 kgf. Uma sobrecarga de 1,5 kN/m² é cerca de 150 kg em cada metro quadrado do piso.</div>`,
+exemplo:`<h3>Laje de apartamento com 10 cm</h3>
+<p>Laje maciça de 10 cm, contrapiso e piso somando 1,0 kN/m², paredes distribuídas valendo 1,0 kN/m² e uso residencial. A viga recebe uma faixa de 2 m da laje.</p>
+<ol class="passos"><li><b>Peso próprio.</b> 25 × 0,10 = <b>2,5 kN/m²</b>.</li>
+<li><b>Permanente.</b> g = 2,5 + 1,0 + 1,0 = <b>4,5 kN/m²</b>. Variável residencial: q = <b>1,5 kN/m²</b>.</li>
+<li><b>Característico.</b> p = 4,5 + 1,5 = <b>6,0 kN/m²</b> (cerca de 600 kgf por m²).</li>
+<li><b>Cálculo.</b> pd = 1,4 × 6,0 = <b>8,4 kN/m²</b>. Quase permanente: 4,5 + 0,3 × 1,5 = <b>4,95 kN/m²</b>.</li>
+<li><b>Na viga.</b> 8,4 × 2 = <b>16,8 kN/m</b> de carga de cálculo.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Laje de escritório sem paredes","html":"<p>Laje de 12 cm, revestimento de 1,0 kN/m², sem paredes sobre a laje, uso de escritório. Faixa de 2 m para a viga.</p><ol class=\"passos\"><li><b>Peso próprio.</b> 25 × 0,12 = <b>3,0 kN/m²</b>. Permanente: g = 3,0 + 1,0 = <b>4,0 kN/m²</b>.</li><li><b>Variável.</b> Escritório: q = <b>2,5 kN/m²</b>. Característico: p = <b>6,5 kN/m²</b>.</li><li><b>Cálculo.</b> pd = 1,4 × 6,5 = <b>9,1 kN/m²</b> · na viga: 9,1 × 2 = <b>18,2 kN/m</b>.</li><li><b>Quase permanente.</b> 4,0 + 0,4 × 2,5 = <b>5,0 kN/m²</b>. Escritório pesa mais que casa por causa do uso, mesmo sem paredes.</li></ol>"},
+{"nivel":"obra","titulo":"Caixa d’água nova sobre a laje","html":"<p>O morador quer colocar uma caixa d’água de 1.000 L sobre a laje do exemplo, que foi calculada com 1,5 kN/m² de uso. A caixa cheia tem base de 1,10 m de diâmetro.</p><ol class=\"passos\"><li><b>Peso da caixa cheia.</b> 1.000 L de água ≈ <b>10 kN</b> (uma tonelada), sem contar a própria caixa.</li><li><b>Área da base.</b> π × 1,10² / 4 = <b>0,95 m²</b>.</li><li><b>Pressão na laje.</b> 10 / 0,95 = <b>10,5 kN/m²</b>, sete vezes a sobrecarga de projeto.</li><li><b>Conclusão.</b> Sem verificar, a laje pode fissurar ou flechar além do aceitável. A caixa deve ir sobre vigas ou pilares, com base de apoio, e a decisão é do engenheiro.</li></ol><div class=\"dica\"><b>Regra prática</b>Carga nova em laje existente (caixa d’água, piscina, parede, ar-condicionado grande) sempre pede verificação.</div>"}],
+obra:{"intro":"Na obra, a carga muda o tempo todo: aparece uma parede que não estava no projeto, uma caixa d’água, um contrapiso mais grosso para corrigir o nível. Cada uma dessas mudanças é peso que a estrutura não esperava.","erros":[["Contrapiso muito grosso","Corrigir nível com 8 ou 10 cm de argamassa acrescenta 1,7 a 2,1 kN/m², mais que a sobrecarga de uma residência."],["Parede nova sobre laje","Parede de alvenaria levantada direto sobre a laje, sem viga embaixo e sem consultar o projetista."],["Mudar o uso do ambiente","Transformar quarto em depósito, academia ou biblioteca, que pedem sobrecargas muito maiores."],["Estocar material na laje","Pilhas de blocos, sacos de cimento ou areia concentrados sobre laje recém-desformada."]],"checklist":["As cargas do projeto (g e q) estão anotadas na planta de formas","Espessura do contrapiso conferida com o projeto","Paredes executadas nas posições previstas","Nenhuma carga nova (caixa d’água, equipamentos) sem avaliação do engenheiro","Material de obra estocado espalhado e longe do meio do vão","Mudança de uso do imóvel comunicada ao projetista"],"dica":"Antes de estocar material sobre uma laje, pergunte: isso pesa mais que pessoas em pé lado a lado? Uma pilha de 1 m de blocos cerâmicos passa fácil de 5 kN/m²."},
+sim:{html:()=>simWrap(rng('cgH','Espessura da laje',8,20,1,10,'cm')+rng('cgR','Contrapiso + piso + forro',0,3,0.1,1,'kN/m²')+rng('cgP','Paredes distribuídas',0,3,0.1,1,'kN/m²','Peso das paredes dividido pela área da laje')+sel('cgU','Uso do ambiente',[['1.5|0.3','Residência (1,5 kN/m²)',1],['2.5|0.4','Escritório (2,5 kN/m²)'],['3|0.6','Garagem de carros (3,0 kN/m²)'],['0.5|0','Cobertura sem acesso (0,5 kN/m²)']])+rng('cgF','Largura de influência na viga',0.5,5,0.1,2,'m')),
+update(){const [q,psi]=$('cgU').value.split('|').map(Number),r=calc.cargas(V_('cgH'),V_('cgR'),V_('cgP'),q,psi,V_('cgF'));
+$('tiles').innerHTML=tiles([['g (permanente)',br(r.g)+' kN/m²'],['q (variável)',br(r.q)+' kN/m²'],['pd (cálculo)',br(r.pd)+' kN/m²',1],['Na viga',br(r.lin)+' kN/m',1]]);
+const parts=[['Peso próprio',r.pp,'line'],['Revestimento',V_('cgR'),'soil'],['Paredes',V_('cgP'),'neg'],['Uso',r.q,'steel']],tot=r.p||1,W=380;let s=T_('COMPOSIÇÃO DA CARGA POR m²',30,20),x=60;
+parts.forEach(([n,v,c],i)=>{const w=W*v/tot;if(w>0.5)s+=`<rect x="${x}" y="50" width="${w}" height="40" style="fill:var(--${c});opacity:.55;stroke:var(--ink);stroke-width:1"/>`;s+=`<rect x="60" y="${120+i*24}" width="12" height="12" style="fill:var(--${c});opacity:.55"/>`+T(80,131+i*24,`${n}: ${br(v)} kN/m² (${br(100*v/tot,0)}%)`,'ink','font-size="11"');x+=w});
+s+=T(60,42,'p = '+br(r.p)+' kN/m² ≈ '+br(r.p*100,0)+' kgf/m²','ink','font-weight="600"')+T(450,75,'× 1,4','amber-ink','font-size="13" font-weight="600"')+T(450,95,'pd = '+br(r.pd),'amber-ink','font-size="13" font-weight="600"');
+s+=T(60,240,'Faixa de '+br(V_('cgF'),1)+' m → viga recebe '+br(r.lin)+' kN/m (cálculo) · '+br(r.linK)+' kN/m (característico)','muted','font-size="10"');
+$('draw').innerHTML=SVG(640,260,'Composição da carga por metro quadrado da laje',s);
+$('memorial').textContent=`1) Peso próprio = 25 kN/m³ × ${br(V_('cgH')/100)} m = ${br(r.pp)} kN/m²
+2) g = ${br(r.pp)} + ${br(V_('cgR'))} + ${br(V_('cgP'))} = ${br(r.g)} kN/m²
+3) q (NBR 6120) = ${br(r.q)} kN/m² · p = g + q = ${br(r.p)} kN/m²
+4) Combinação última normal (NBR 8681): pd = 1,4 × ${br(r.g)} + 1,4 × ${br(r.q)} = ${br(r.pd)} kN/m²
+5) Quase permanente: pqp = ${br(r.g)} + ${br(psi,1)} × ${br(r.q)} = ${br(r.pqp)} kN/m² (flechas e fissuras)
+6) Na viga: ${br(r.pd)} × ${br(V_('cgF'),1)} m = ${br(r.lin)} kN/m de cálculo`;}}
+});
+
+// CS-22 · Compactação de Solos (ensaio de Proctor e controle de campo)
+Academia.modulo('cs',{
+teoria:`<p>Solo solto tem ar entre os grãos. Compactar é apertar esses grãos para tirar o ar, deixando o solo mais denso, mais resistente e menos sujeito a recalque. O segredo está na <b>água</b>: com pouca, os grãos não deslizam; com muita, a água ocupa o lugar e o solo vira barro.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Curva de compactação: a massa específica seca é máxima na umidade ótima">
+<line x1="70" y1="180" x2="560" y2="180" style="stroke:var(--ink);stroke-width:1.5"/><line x1="70" y1="180" x2="70" y2="20" style="stroke:var(--ink);stroke-width:1.5"/>
+<path d="M100 160 Q 315 -20 530 160" style="fill:none;stroke:var(--steel);stroke-width:3"/>
+<line x1="315" y1="72" x2="315" y2="180" style="stroke:var(--amber);stroke-width:1.5" stroke-dasharray="5 4"/><line x1="70" y1="70" x2="315" y2="70" style="stroke:var(--amber);stroke-width:1.5" stroke-dasharray="5 4"/>
+<circle cx="315" cy="70" r="6" style="fill:var(--amber);stroke:var(--ink)"/>
+<text x="322" y="62" style="fill:var(--amber-ink)" font-size="11" font-weight="600">γd,máx</text><text x="315" y="196" style="fill:var(--amber-ink)" text-anchor="middle" font-size="11" font-weight="600">w ótima</text>
+<text x="120" y="120" style="fill:var(--muted)" font-size="10">ramo seco</text><text x="450" y="120" style="fill:var(--muted)" font-size="10">ramo úmido</text>
+<text x="565" y="184" style="fill:var(--muted)" font-size="10">w (%)</text><text x="20" y="26" style="fill:var(--muted)" font-size="10">γd</text></svg><figcaption>Curva de compactação: a massa específica seca é máxima na umidade ótima</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Umidade (w)</h4><p>Quanto de água o solo tem em relação ao peso dos grãos secos, em porcentagem.</p></div>
+<div class="conceito"><h4>Peso específico seco (γd)</h4><p>Quanto pesa só o solo, sem a água, por metro cúbico. É ele que mostra o quanto o solo está apertado.</p></div>
+<div class="conceito"><h4>Grau de compactação (GC)</h4><p>Compara o que se conseguiu no campo com o máximo do laboratório. GC = 100% é a meta usual em base de pavimento.</p></div></div>
+<h3>Ensaio de Proctor (NBR 7182)</h3>
+<div class="formula">Compacta-se o solo num cilindro com várias umidades e mede-se o peso específico úmido γh</div>
+<div class="formula">Peso específico seco: γd = γh / (1 + w/100)</div>
+<div class="formula">O topo da curva γd × w dá a umidade ótima (w ót) e o γd,máx</div>
+<h3>Controle de campo</h3>
+<div class="formula">GC = 100 × γd,campo / γd,máx     ·     desvio de umidade: Δw = w,campo − w ót</div>
+<div class="formula">Usual: GC ≥ 95% em aterros e ≥ 100% em base e sub-base · Δw dentro de ± 2 pontos</div>
+<div class="dica"><b>A energia muda a curva</b>Proctor normal, intermediário e modificado usam energias diferentes. Mais energia dá γd,máx maior e umidade ótima menor. O projeto diz qual energia usar.</div>`,
+exemplo:`<h3>Ensaio de Proctor com cinco pontos</h3>
+<p>No laboratório, o solo foi compactado com cinco umidades. As leituras de peso específico úmido foram:</p>
+<ol class="passos"><li><b>Leituras.</b> w = 10, 12, 14, 16 e 18% · γh = 18,70 · 19,71 · 20,29 · 20,42 · 20,06 kN/m³.</li>
+<li><b>Peso específico seco.</b> γd = γh / (1 + w): <b>17,00 · 17,60 · 17,80 · 17,60 · 17,00 kN/m³</b>.</li>
+<li><b>Topo da curva.</b> A parábola que passa pelos pontos tem o máximo em <b>w ót = 14,0%</b> e <b>γd,máx = 17,80 kN/m³</b>.</li>
+<li><b>Controle de campo.</b> Na camada compactada, o ensaio deu γh = 19,6 kN/m³ com w = 13%: γd = 19,6 / 1,13 = <b>17,35 kN/m³</b>.</li>
+<li><b>Grau de compactação.</b> GC = 17,35 / 17,80 = <b>97,4%</b>. Serve para aterro (95%), mas <b>não serve para base</b>, que pede 100%.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Do úmido para o seco","html":"<p>Uma amostra compactada tem peso específico úmido de 20,0 kN/m³ e umidade de 15%.</p><ol class=\"passos\"><li><b>Fórmula.</b> γd = γh / (1 + w/100).</li><li><b>Conta.</b> γd = 20,0 / 1,15 = <b>17,39 kN/m³</b>.</li><li><b>Leitura.</b> Dos 20,0 kN/m³, cerca de 2,6 kN/m³ são só a água. Por isso o controle de compactação sempre usa o peso seco.</li><li><b>Comparação.</b> Se o γd,máx do Proctor for 17,8 kN/m³, o GC dessa amostra é 17,39 / 17,8 = <b>97,7%</b>.</li></ol>"},
+{"nivel":"obra","titulo":"Camada aprovada no GC, reprovada na umidade","html":"<p>Base de brita graduada com γd,máx = 21,5 kN/m³ e w ót = 6%. O ensaio de frasco de areia deu γh = 23,2 kN/m³ com w = 9%.</p><ol class=\"passos\"><li><b>Peso seco.</b> γd = 23,2 / 1,09 = <b>21,28 kN/m³</b>.</li><li><b>GC.</b> 21,28 / 21,5 = <b>99,0%</b>: abaixo dos 100% exigidos para base.</li><li><b>Umidade.</b> Δw = 9 − 6 = <b>+3 pontos</b>, fora da tolerância de ± 2.</li><li><b>O que fazer.</b> Aerar e revolver a camada para secar, voltar para perto da umidade ótima e recompactar. Compactar mais com o material encharcado só bombeia água e não aumenta o GC.</li></ol><div class=\"dica\"><b>Sinal de alerta</b>Camada que \"borrachuda\" ou ondula sob o rolo está úmida demais. Pare e corrija a umidade antes de insistir.</div>"}],
+obra:{"intro":"Compactação boa não se vê: só o ensaio mostra. Camada mal compactada parece firme no dia e afunda depois, com trinca em piso, recalque de muro e buraco no asfalto.","erros":[["Compactar fora da umidade ótima","Solo seco demais ou encharcado não chega ao grau de compactação, por mais que se passe o rolo."],["Camada grossa demais","Lançar 40 ou 50 cm de uma vez: o fundo fica fofo, porque a energia do rolo não chega lá embaixo."],["Material errado no aterro","Solo com raízes, entulho, matéria orgânica ou argila muito plástica no lugar do material especificado."],["Liberar sem ensaio","Passar para a camada seguinte sem o ensaio de frasco de areia ou densímetro da camada de baixo."]],"checklist":["Proctor do material feito no laboratório, com a energia do projeto","Camadas lançadas com no máximo 20 cm compactados","Umidade conferida antes de compactar (dentro de ± 2 pontos da ótima)","Número de passadas do rolo definido em trecho experimental","Ensaio de grau de compactação em cada camada, com laudo","Matéria orgânica, raízes e entulho retirados antes do aterro","Taludes e bordas compactados com equipamento adequado"],"dica":"Faça um trecho experimental no começo da obra: varie o número de passadas do rolo e meça o GC. Você descobre quantas passadas o seu equipamento precisa e evita retrabalho no resto do aterro."},
+sim:{html:()=>simWrap(rng('csW1','Ponto 1: γh com w = 10%',16,22,0.01,18.70,'kN/m³')+rng('csW2','Ponto 2: γh com w = 12%',16,22,0.01,19.71,'kN/m³')+rng('csW3','Ponto 3: γh com w = 14%',16,22,0.01,20.29,'kN/m³')+rng('csW4','Ponto 4: γh com w = 16%',16,22,0.01,20.42,'kN/m³')+rng('csW5','Ponto 5: γh com w = 18%',16,22,0.01,20.06,'kN/m³')+rng('csGh','Campo: γh medido',16,24,0.05,19.6,'kN/m³','Ensaio de frasco de areia ou densímetro')+rng('csWc','Campo: umidade medida',4,24,0.5,13,'%')+sel('csE','Exigência de GC',[['100','Base e sub-base (100%)',1],['95','Aterro e reaterro (95%)'],['98','Sub-base / reforço (98%)']])),
+update(){const pts=[10,12,14,16,18].map((w,i)=>[w,V_('csW'+(i+1))]),p=calc.proctor(pts),esp=+$('csE').value;
+ const gdm=p.valido?p.gdmax:Math.max(...p.gd),wot=p.valido?p.wot:pts[p.gd.indexOf(gdm)][0],c=calc.campo(gdm,wot,V_('csGh'),V_('csWc'),esp);
+ $('tiles').innerHTML=tiles([['w ótima',br(wot,1)+' %'],['γd,máx',br(gdm)+' kN/m³'],['GC no campo',br(c.GC,1)+' %',1],['Resultado',c.ok?'Aprovado':'Reprovado',1]]);
+ const x0=70,x1=560,y0=200,y1=30,mn=Math.min(...p.gd,c.gd)-0.4,mx=Math.max(...p.gd,c.gd,gdm)+0.3,sx=w=>x0+(x1-x0)*(w-8)/14,sy=g=>y0-(y0-y1)*(g-mn)/(mx-mn);
+ let s=T_('CURVA DE COMPACTAÇÃO',30,18)+Ln(x0,y0,x1,y0,'ink',1.5)+Ln(x0,y0,x0,y1,'ink',1.5)+T(x1+4,y0+4,'w %','muted','font-size="10"')+T(14,y1,'γd','muted','font-size="10"');
+ for(let w=8;w<=22;w+=2)s+=Ln(sx(w),y0,sx(w),y0+4,'ink')+T(sx(w),y0+16,w,'muted','text-anchor="middle" font-size="9"');
+ if(p.valido){let d='';for(let w=9;w<=19;w+=0.25){const g=p.c+p.b*w+p.a*w*w;d+=(d?' L':'M')+sx(w).toFixed(1)+' '+sy(g).toFixed(1)}s+=`<path d="${d}" style="fill:none;stroke:var(--steel);stroke-width:2.5"/>`;}
+ p.gd.forEach((g,i)=>{s+=`<circle cx="${sx(pts[i][0])}" cy="${sy(g)}" r="5" style="fill:var(--sheet);stroke:var(--steel);stroke-width:2"/>`});
+ s+=Ln(sx(wot),sy(gdm),sx(wot),y0,'amber',1.5,'stroke-dasharray="5 4"')+`<circle cx="${sx(wot)}" cy="${sy(gdm)}" r="6" style="fill:var(--amber);stroke:var(--ink)"/>`+T(sx(wot)+8,sy(gdm)-8,'máx '+br(gdm),'amber-ink','font-weight="600"');
+ const cw=Math.min(Math.max(V_('csWc'),8),22);s+=`<path d="M${sx(cw)-7} ${sy(c.gd)} L${sx(cw)} ${sy(c.gd)-8} L${sx(cw)+7} ${sy(c.gd)} L${sx(cw)} ${sy(c.gd)+8}Z" style="fill:var(--${c.ok?'pos':'neg'})"/>`+T(sx(cw)+10,sy(c.gd)+18,'campo · GC '+br(c.GC,1)+'%',c.ok?'pos':'neg','font-size="10" font-weight="600"');
+ if(!p.valido)s+=T(300,110,'Os pontos não formam uma curva com topo: revise as leituras','neg','text-anchor="middle" font-size="11"');
+ $('draw').innerHTML=SVG(640,230,'Curva de compactação com os pontos do ensaio e o ponto de campo',s);
+ $('memorial').textContent=`1) γd = γh / (1 + w): ${p.gd.map((g,i)=>br(pts[i][1])+'/'+br(1+pts[i][0]/100)+' = '+br(g)).join(' · ')}
+2) Parábola ajustada: γd = ${br(p.c,3)} ${p.b>=0?'+':'−'} ${br(Math.abs(p.b),4)}·w ${p.a>=0?'+':'−'} ${br(Math.abs(p.a),4)}·w²${p.valido?'':' (sem máximo dentro dos pontos: adotado o maior ponto)'}
+3) Umidade ótima = ${br(wot,2)}% · γd,máx = ${br(gdm,3)} kN/m³
+4) Campo: γd = ${br(V_('csGh'))} / ${br(1+V_('csWc')/100,3)} = ${br(c.gd,3)} kN/m³
+5) GC = 100 × ${br(c.gd,3)} / ${br(gdm,3)} = ${br(c.GC,1)}% (exigido ${esp}%) → ${c.okGC?'atende':'não atende'}
+6) Δw = ${br(V_('csWc'),1)} − ${br(wot,1)} = ${br(c.dw,1)} pontos (tolerância ± 2) → ${c.okW?'atende':'não atende'} · camada ${c.ok?'APROVADA':'REPROVADA'}`;}}
+});
+
+// HI-23 · Hidrologia e Drenagem (tempo de concentração, chuva IDF e método racional)
+Academia.modulo('hi',{
+teoria:`<p>Antes de dimensionar uma sarjeta, uma galeria ou um bueiro, é preciso saber <b>quanta água vai chegar</b>. A hidrologia responde isso olhando para três coisas: o tamanho da bacia que drena para o ponto, o quanto o terreno deixa a água escorrer e a chuva forte da região.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Bacia de contribuição: a chuva cai em toda a área e escoa até o ponto de saída">
+<path d="M80 60 Q 200 10 330 40 Q 470 20 560 80 Q 600 150 520 190 Q 380 210 300 185 Q 170 205 100 160 Q 50 110 80 60Z" style="fill:var(--pos-fill);stroke:var(--pos);stroke-width:2"/>
+<path d="M140 80 Q 220 120 300 150 Q 350 165 380 190" style="fill:none;stroke:var(--water);stroke-width:3"/><path d="M500 70 Q 430 120 360 160" style="fill:none;stroke:var(--water);stroke-width:2"/>
+<circle cx="380" cy="190" r="7" style="fill:var(--amber);stroke:var(--ink)"/><text x="392" y="208" style="fill:var(--amber-ink)" font-size="11" font-weight="600">saída (Q)</text>
+<text x="150" y="70" style="fill:var(--ink)" font-size="10">ponto mais distante</text><text x="230" y="112" style="fill:var(--water)" font-size="10">L (talvegue)</text>
+<g style="stroke:var(--steel);stroke-width:1.5"><line x1="200" y1="0" x2="190" y2="20"/><line x1="260" y1="0" x2="250" y2="20"/><line x1="320" y1="0" x2="310" y2="20"/><line x1="380" y1="0" x2="370" y2="20"/><line x1="440" y1="0" x2="430" y2="20"/></g>
+<text x="460" y="140" style="fill:var(--pos)" font-size="11" font-weight="600">área A</text></svg><figcaption>Bacia de contribuição: a chuva cai em toda a área e escoa até o ponto de saída</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Tempo de concentração (tc)</h4><p>Quanto tempo a gota que cai no ponto mais distante leva para chegar à saída. A partir daí, a bacia inteira contribui ao mesmo tempo.</p></div>
+<div class="conceito"><h4>Período de retorno (T)</h4><p>De quantos em quantos anos, em média, aquela chuva é igualada ou superada. Microdrenagem usa 2 a 10 anos; bueiros e canais, 25 a 100.</p></div>
+<div class="conceito"><h4>Coeficiente C</h4><p>A fração da chuva que escorre. Telhado e asfalto ficam perto de 0,9; gramado, perto de 0,2.</p></div></div>
+<h3>As três fórmulas</h3>
+<div class="formula">Kirpich: tc = 57 × (L³ / H)^0,385   (tc em min, L em km, H = desnível em m) · adote tc ≥ 10 min</div>
+<div class="formula">Chuva IDF: i = K × T^a / (t + b)^c   (i em mm/h, com t = tc) · K, a, b, c são da cidade</div>
+<div class="formula">Método racional: Q = C × i × A / 360   (Q em m³/s, i em mm/h, A em ha) · bacias até cerca de 2 km²</div>
+<div class="dica"><b>A IDF é local</b>Os parâmetros K, a, b e c mudam de cidade para cidade. Use a equação publicada para o seu município ou a do posto pluviométrico mais próximo. Os valores do simulador são só ilustrativos.</div>`,
+exemplo:`<h3>Vazão de um loteamento</h3>
+<p>Uma bacia de 12 ha, com C = 0,60, tem talvegue de 0,8 km e desnível de 16 m. A galeria será dimensionada para T = 10 anos, com a IDF ilustrativa i = 1200·T^0,15 / (t + 10)^0,85.</p>
+<ol class="passos"><li><b>Tempo de concentração.</b> tc = 57 × (0,8³ / 16)^0,385 = 57 × 0,032^0,385 = <b>15,2 min</b> (maior que 10, vale o calculado).</li>
+<li><b>Intensidade.</b> i = 1200 × 10^0,15 / (15,2 + 10)^0,85 = 1695 / 15,5 = <b>109,3 mm/h</b>.</li>
+<li><b>Vazão.</b> Q = 0,60 × 109,3 × 12 / 360 = <b>2,19 m³/s</b>, ou cerca de 2.190 litros por segundo.</li>
+<li><b>Uso.</b> Essa é a vazão de projeto que a galeria na saída precisa levar, com folga, sem afogar.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Água de um telhado","html":"<p>Um galpão tem 500 m² de telhado (C = 0,95). A chuva de projeto, para tc = 5 min e T = 5 anos, é de 150 mm/h.</p><ol class=\"passos\"><li><b>Área em hectares.</b> 500 m² = <b>0,05 ha</b> (1 ha = 10.000 m²).</li><li><b>Fórmula.</b> Q = C × i × A / 360.</li><li><b>Conta.</b> Q = 0,95 × 150 × 0,05 / 360 = <b>0,0198 m³/s ≈ 20 L/s</b>.</li><li><b>Leitura.</b> São 20 litros por segundo chegando às calhas e condutores, o que já pede vários tubos de queda. Em telhado pequeno, a NBR 10844 usa tc de 5 min.</li></ol>"},
+{"nivel":"obra","titulo":"O loteamento asfaltou a bacia","html":"<p>A mesma bacia de 12 ha do exemplo era pasto (C = 0,30) e virou loteamento com ruas asfaltadas (C = 0,70). A chuva de projeto continua 109,3 mm/h.</p><ol class=\"passos\"><li><b>Antes.</b> Q = 0,30 × 109,3 × 12 / 360 = <b>1,09 m³/s</b>.</li><li><b>Depois.</b> Q = 0,70 × 109,3 × 12 / 360 = <b>2,55 m³/s</b>.</li><li><b>Diferença.</b> A vazão mais que dobrou (× 2,3), e na prática ainda cresce mais, porque o asfalto também encurta o tc e aumenta a intensidade.</li><li><b>Consequência.</b> O bueiro antigo, feito para o pasto, passa a transbordar. Por isso muitas cidades exigem reservatório de detenção nos novos loteamentos.</li></ol><div class=\"dica\"><b>Na obra</b>Antes de ligar a drenagem nova na rede existente, confira se a rede de jusante foi calculada para a vazão nova.</div>"}],
+obra:{"intro":"Drenagem mal calculada aparece na primeira chuva forte: rua alagada, boca de lobo cuspindo água, erosão no pé do talude e água entrando nas casas. Quase sempre o problema começou numa vazão subestimada.","erros":[["Usar IDF de outra cidade","Copiar a equação de chuva de uma capital para uma cidade com regime de chuva bem diferente."],["Esquecer a bacia de fora","Calcular só a área do lote ou da rua e ignorar a água que vem do morro ou do terreno vizinho."],["C de terreno natural","Usar o coeficiente do terreno antes da obra, quando o projeto vai impermeabilizar a área."],["Bueiro sem proteção","Saída de galeria sem dissipador de energia, que vira erosão e cratera no primeiro verão."]],"checklist":["Bacia de contribuição delimitada em planta, incluindo áreas a montante","Equação IDF do município ou do posto mais próximo, com a fonte anotada","Período de retorno coerente com a obra (microdrenagem × bueiro × canal)","Coeficiente C da situação futura, já urbanizada","Bocas de lobo limpas e na quantidade calculada","Dissipador de energia nas saídas de galerias e descidas d’água","Rede de jusante verificada para a vazão nova"],"dica":"Ande pela bacia num dia de chuva, ou peça fotos a quem mora lá. As marcas de água em muros e o caminho real da enxurrada mostram coisas que o mapa não mostra."},
+sim:{html:()=>simWrap(rng('hiA','Área da bacia',0.5,100,0.5,12,'ha')+rng('hiC','Coeficiente de escoamento C',0.1,0.95,0.05,0.6,'','0,2 gramado · 0,5 loteamento · 0,9 asfalto e telhado')+rng('hiL','Comprimento do talvegue',0.1,3,0.05,0.8,'km')+rng('hiH','Desnível ao longo do talvegue',1,100,1,16,'m')+sel('hiT','Período de retorno',[['2','2 anos'],['5','5 anos'],['10','10 anos',1],['25','25 anos'],['50','50 anos'],['100','100 anos']])+rng('hiK','IDF: K',300,3000,10,1200,'','Parâmetros da equação de chuva da cidade')+rng('hiAa','IDF: a',0.05,0.3,0.01,0.15)+rng('hiB','IDF: b',0,40,1,10,'min')+rng('hiCc','IDF: c',0.6,1.1,0.01,0.85)),
+update(){const Tr=+$('hiT').value,K=V_('hiK'),a=V_('hiAa'),b=V_('hiB'),c=V_('hiCc'),r=calc.bacia(V_('hiA'),V_('hiC'),V_('hiL'),V_('hiH'),Tr,K,a,b,c);
+ $('tiles').innerHTML=tiles([['tc (Kirpich)',br(r.tcK,1)+' min'],['tc adotado',br(r.tc,1)+' min'],['Intensidade i',br(r.i,1)+' mm/h',1],['Vazão Q',br(r.Q,3)+' m³/s',1]]);
+ const x0=70,x1=580,y0=200,y1=30,tm=120,imax=calc.idf(K,a,b,c,100,5)*1.05,sx=t=>x0+(x1-x0)*t/tm,sy=i=>y0-(y0-y1)*Math.min(i,imax)/imax;
+ let s=T_('CURVAS IDF · INTENSIDADE × DURAÇÃO',30,18)+Ln(x0,y0,x1,y0,'ink',1.5)+Ln(x0,y0,x0,y1,'ink',1.5)+T(x1-40,y0+28,'duração (min)','muted','font-size="10"')+T(14,y1-4,'i mm/h','muted','font-size="10"');
+ for(let t=0;t<=tm;t+=20)s+=Ln(sx(t),y0,sx(t),y0+4,'ink')+T(sx(t),y0+16,t,'muted','text-anchor="middle" font-size="9"');
+ for(let k=0;k<=4;k++){const v=imax*k/4;s+=Ln(x0-4,sy(v),x0,sy(v),'ink')+T(x0-8,sy(v)+3,br(v,0),'muted','text-anchor="end" font-size="9"')}
+ [2,10,100].concat(Tr).filter((v,i,ar)=>ar.indexOf(v)===i).forEach(Tv=>{let d='';for(let t=5;t<=tm;t+=2.5)d+=(d?' L':'M')+sx(t).toFixed(1)+' '+sy(calc.idf(K,a,b,c,Tv,t)).toFixed(1);const on=Tv===Tr;s+=`<path d="${d}" style="fill:none;stroke:var(--${on?'water':'line'});stroke-width:${on?3:1.5}"/>`+T(sx(tm)+4,sy(calc.idf(K,a,b,c,Tv,tm))+3,'T='+Tv,on?'water':'muted','font-size="9"')});
+ const tx=Math.min(r.tc,tm);s+=Ln(sx(tx),y0,sx(tx),sy(r.i),'amber',1.5,'stroke-dasharray="5 4"')+Ln(x0,sy(r.i),sx(tx),sy(r.i),'amber',1.5,'stroke-dasharray="5 4"')+`<circle cx="${sx(tx)}" cy="${sy(r.i)}" r="6" style="fill:var(--amber);stroke:var(--ink)"/>`+T(sx(tx)+10,sy(r.i)-8,'tc '+br(r.tc,1)+' min · i '+br(r.i,1)+' mm/h','amber-ink','font-weight="600"');
+ s+=T(x0+200,y1+10,'Q = '+br(V_('hiC'))+' × '+br(r.i,1)+' × '+br(V_('hiA'),1)+' / 360 = '+br(r.Q,3)+' m³/s','ink','font-weight="600"');
+ $('draw').innerHTML=SVG(640,230,'Curvas IDF com a intensidade de projeto no tempo de concentração',s);
+ $('memorial').textContent=`1) Kirpich: tc = 57 × (${br(V_('hiL'))}³ / ${br(V_('hiH'),0)})^0,385 = ${br(r.tcK,2)} min
+2) tc adotado = ${br(r.tc,2)} min ${r.tcK<10?'(mínimo de 10 min)':''}
+3) IDF: i = ${br(K,0)} × ${Tr}^${br(a)} / (${br(r.tc,2)} + ${br(b,0)})^${br(c)} = ${br(r.i,2)} mm/h
+4) Racional: Q = C × i × A / 360 = ${br(V_('hiC'))} × ${br(r.i,2)} × ${br(V_('hiA'),1)} / 360 = ${br(r.Q,3)} m³/s
+5) Em litros: ${br(r.Ql,0)} L/s
+6) ${V_('hiA')>200?'Área acima de 2 km²: o racional deixa de ser indicado, use hidrograma unitário':'Área dentro do limite usual do método racional (até cerca de 2 km²)'} · IDF ilustrativa: use a da sua cidade`;}}
+});
+
+// ES-24 · Estradas (curva horizontal, superelevação e distância de visibilidade)
+Academia.modulo('es',{
+teoria:`<p>Numa estrada, o traçado é feito de retas (tangentes) ligadas por curvas. Na curva, o carro tende a sair pela tangente. Quem segura o veículo na pista é o <b>atrito do pneu</b> com o pavimento e a <b>superelevação</b>, que é a inclinação da pista para o lado de dentro da curva.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Elementos da curva circular: tangente T, desenvolvimento D, raio R e ângulo central AC">
+<line x1="90" y1="190" x2="320" y2="30" style="stroke:var(--line);stroke-width:2"/><line x1="320" y1="30" x2="550" y2="190" style="stroke:var(--line);stroke-width:2"/>
+<path d="M176 130 Q 320 30 464 130" style="fill:none;stroke:var(--steel);stroke-width:4"/>
+<circle cx="176" cy="130" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="464" cy="130" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="320" cy="30" r="5" style="fill:var(--ink)"/>
+<text x="140" y="126" style="fill:var(--amber-ink)" font-weight="600">PC</text><text x="474" y="126" style="fill:var(--amber-ink)" font-weight="600">PT</text><text x="330" y="26" style="fill:var(--ink)" font-weight="600">PI</text>
+<text x="226" y="70" style="fill:var(--muted)" font-size="10">T</text><text x="410" y="70" style="fill:var(--muted)" font-size="10">T</text><text x="300" y="98" style="fill:var(--steel)" font-size="10" font-weight="600">D (arco)</text>
+<line x1="320" y1="80" x2="320" y2="30" style="stroke:var(--amber);stroke-width:1.5" stroke-dasharray="4 3"/><text x="326" y="58" style="fill:var(--amber-ink)" font-size="10">E</text>
+<text x="40" y="214" style="fill:var(--muted)" font-size="10">PC = começo da curva · PT = fim da curva · PI = encontro das tangentes</text></svg><figcaption>Elementos da curva circular: tangente T, desenvolvimento D, raio R e ângulo central AC</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Velocidade de projeto (V)</h4><p>A velocidade que o traçado precisa permitir com segurança. Ela define o raio mínimo e a visibilidade necessária.</p></div>
+<div class="conceito"><h4>Superelevação (e)</h4><p>Inclinação transversal da pista na curva, em m/m. O DNER limita a 8% em estradas rurais comuns e a 12% em casos especiais.</p></div>
+<div class="conceito"><h4>Visibilidade de parada (Dp)</h4><p>A distância que o motorista precisa enxergar à frente para ver um obstáculo, reagir e frear até parar.</p></div></div>
+<h3>Fórmulas do traçado</h3>
+<div class="formula">Raio mínimo: Rmín = V² / [127 × (e + f)]   (V em km/h, e e f em m/m, R em m)</div>
+<div class="formula">Curva circular: T = R × tan(AC/2) · D = R × AC (rad) · E = R × [1/cos(AC/2) − 1]</div>
+<div class="formula">Visibilidade de parada: Dp = 0,7 × V + V² / [255 × (fl ± i)]   (i = rampa, + subindo, − descendo)</div>
+<div class="dica"><b>Atrito diminui com a velocidade</b>O coeficiente de atrito lateral f cai de cerca de 0,17 a 30 km/h para 0,11 a 120 km/h. Por isso, dobrar a velocidade exige raio muito mais que o dobro.</div>`,
+exemplo:`<h3>Curva numa estrada de 60 km/h</h3>
+<p>Estrada com velocidade de projeto de 60 km/h, superelevação máxima de 8% e atrito lateral 0,15. A curva tem raio de 150 m e ângulo central de 40°. Trecho em nível, com atrito longitudinal 0,33.</p>
+<ol class="passos"><li><b>Raio mínimo.</b> Rmín = 60² / [127 × (0,08 + 0,15)] = 3600 / 29,2 = <b>123,2 m</b>. O raio de 150 m <b>atende</b>.</li>
+<li><b>Tangente.</b> T = 150 × tan 20° = <b>54,6 m</b> do PC ao PI.</li>
+<li><b>Desenvolvimento.</b> AC = 40° = 0,698 rad · D = 150 × 0,698 = <b>104,7 m</b> de arco.</li>
+<li><b>Afastamento.</b> E = 150 × (1/cos 20° − 1) = <b>9,63 m</b> do PI até o meio da curva.</li>
+<li><b>Visibilidade de parada.</b> Dp = 0,7 × 60 + 60² / (255 × 0,33) = 42 + 42,8 = <b>84,8 m</b>.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Raio mínimo a 80 km/h","html":"<p>Uma estrada nova terá velocidade de projeto de 80 km/h, com e = 8% e f = 0,14.</p><ol class=\"passos\"><li><b>Fórmula.</b> Rmín = V² / [127 × (e + f)].</li><li><b>Conta.</b> Rmín = 80² / [127 × (0,08 + 0,14)] = 6400 / 27,94 = <b>229 m</b>.</li><li><b>Comparação.</b> A 60 km/h o mínimo era 123 m. Com um terço a mais de velocidade, o raio quase dobrou.</li><li><b>Leitura.</b> Uma curva de 200 m, que servia a 60 km/h, <b>não serve</b> a 80 km/h: ou se aumenta o raio, ou a placa precisa reduzir a velocidade.</li></ol>"},
+{"nivel":"obra","titulo":"A mesma curva numa descida","html":"<p>O trecho do exemplo (60 km/h, fl = 0,33) fica no meio de uma descida de 6%. É preciso conferir se o corte do talude interno deixa o motorista enxergar o suficiente.</p><ol class=\"passos\"><li><b>Em nível.</b> Dp = 42 + 3600 / (255 × 0,33) = <b>84,8 m</b>.</li><li><b>Descendo 6%.</b> Dp = 42 + 3600 / [255 × (0,33 − 0,06)] = 42 + 52,3 = <b>94,3 m</b>.</li><li><b>Subindo 6%.</b> Dp = 42 + 3600 / [255 × 0,39] = <b>78,2 m</b>.</li><li><b>Na obra.</b> Na descida o carro precisa de quase 10 m a mais para parar. Se o talude de corte ou a vegetação no lado de dentro da curva tapa a vista antes disso, é preciso recuar o talude, roçar ou sinalizar.</li></ol><div class=\"dica\"><b>Vegetação conta</b>Mato que cresce na faixa de domínio vai fechando a visibilidade com o tempo. Roçada nas curvas é manutenção de segurança.</div>"}],
+obra:{"intro":"Curva mal executada não perdoa: superelevação invertida ou insuficiente, transição malfeita e talude tapando a vista são causa frequente de saída de pista. Na obra, o traçado do projeto tem que virar realidade com nivelamento e marcação cuidadosos.","erros":[["Superelevação errada","Executar a curva com a inclinação para fora, ou plana, porque a máquina copiou a seção da reta."],["Sem transição","Passar de repente da reta para a curva com superelevação cheia, sem a rampa de transição."],["Talude tapando a vista","Corte interno da curva executado mais alto ou mais próximo do que o projeto, reduzindo a visibilidade."],["Drenagem no lado errado","Sarjeta e saídas d’água pensadas para a reta, que não recebem a água que a superelevação joga para dentro."]],"checklist":["Estacas do PC, PI e PT locadas e conferidas com o projeto","Superelevação conferida com gabarito ou nível em cada estaca da curva","Comprimento de transição da superelevação respeitado","Sarjeta e bocas de saída no lado baixo da curva","Taludes internos com o recuo de visibilidade do projeto","Sinalização de curva e de velocidade instalada antes da liberação"],"dica":"Ande a curva de carro antes de liberar, na velocidade de projeto e de noite com farol baixo. Se a curva \"puxa\" para fora ou o fim dela some antes da hora, alguma coisa está diferente do projeto."},
+sim:{html:()=>simWrap(rng('esV','Velocidade de projeto',30,120,10,60,'km/h')+rng('esE','Superelevação máxima e',2,12,0.5,8,'%')+rng('esF','Atrito lateral f',0.1,0.2,0.01,0.15,'','0,17 a 30 km/h · 0,15 a 60 · 0,13 a 100 · 0,11 a 120')+rng('esR','Raio da curva',30,800,5,150,'m')+rng('esAC','Ângulo central AC',5,90,1,40,'°')+rng('esFl','Atrito longitudinal fl',0.25,0.4,0.01,0.33,'','Pista molhada · cai com a velocidade')+rng('esI','Rampa do trecho',-8,8,0.5,0,'%','Negativo = descida')),
+update(){const V=V_('esV'),e=V_('esE')/100,f=V_('esF'),R=V_('esR'),AC=V_('esAC'),fl=V_('esFl'),i=V_('esI')/100,r=calc.estrada(V,e,f,R,AC,fl,i);
+ $('tiles').innerHTML=tiles([['Raio mínimo',br(r.Rmin,1)+' m'],['Raio adotado',br(R,0)+' m · '+(r.ok?'atende':'não atende'),1],['Desenvolvimento D',br(r.D,1)+' m'],['Visibilidade Dp',br(r.Dp,1)+' m',1]]);
+ const h=AC*Math.PI/360,Rp=Math.min(220/Math.sin(h),130/(1/Math.cos(h)-Math.cos(h)),900),O=[320,40+Rp/Math.cos(h)],P=t=>[O[0]+Rp*Math.sin(t),O[1]-Rp*Math.cos(t)],pc=P(-h),pt=P(h),pi=[O[0],O[1]-Rp/Math.cos(h)],ex=(a,b,k)=>[a[0]+(a[0]-b[0])*k,a[1]+(a[1]-b[1])*k];
+ const c1=r.ok?'steel':'neg',a1=ex(pc,pi,0.6),a2=ex(pt,pi,0.6);
+ let s=T_('CURVA CIRCULAR EM PLANTA (fora de escala)',20,18)+Ln(a1[0],a1[1],pi[0],pi[1],'line',2)+Ln(pi[0],pi[1],a2[0],a2[1],'line',2);
+ s+=Ln(O[0],O[1],pc[0],pc[1],'muted',1,'stroke-dasharray="3 3"')+Ln(O[0],O[1],pt[0],pt[1],'muted',1,'stroke-dasharray="3 3"');
+ s+=`<path d="M${pc[0].toFixed(1)} ${pc[1].toFixed(1)} A${Rp} ${Rp} 0 0 1 ${pt[0].toFixed(1)} ${pt[1].toFixed(1)}" style="fill:none;stroke:var(--${c1});stroke-width:5"/>`;
+ s+=`<circle cx="${pc[0]}" cy="${pc[1]}" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="${pt[0]}" cy="${pt[1]}" r="5" style="fill:var(--amber);stroke:var(--ink)"/><circle cx="${pi[0]}" cy="${pi[1]}" r="4" style="fill:var(--ink)"/>`;
+ s+=T(pc[0]-32,pc[1]+4,'PC','amber-ink','font-weight="600"')+T(pt[0]+10,pt[1]+4,'PT','amber-ink','font-weight="600"')+T(pi[0]+8,pi[1]-4,'PI','ink','font-weight="600"')+T(pc[0]+(O[0]-pc[0])*60/(O[1]-pc[1])+10,pc[1]+60,'R = '+br(R,0)+' m','muted','font-size="10"');
+ s+=T(20,226,'T = '+br(r.T,1)+' m · D = '+br(r.D,1)+' m · E = '+br(r.E,2)+' m · AC = '+br(AC,0)+'°','ink','font-size="10" font-weight="600"');
+ s+=T(20,244,'Rmín = '+br(r.Rmin,1)+' m → '+(r.ok?'raio atende':'raio abaixo do mínimo: aumente R ou reduza V'),r.ok?'pos':'neg','font-size="10" font-weight="600"');
+ $('draw').innerHTML=SVG(640,260,'Curva circular em planta com PC, PI, PT e raio',s);
+ $('memorial').textContent=`1) Rmín = V² / [127 × (e + f)] = ${V}² / [127 × (${br(e,3)} + ${br(f)})] = ${br(r.Rmin,1)} m
+2) R adotado = ${br(R,0)} m → ${r.ok?'atende':'NÃO atende'} ao raio mínimo
+3) T = R × tan(AC/2) = ${br(R,0)} × tan ${br(AC/2,1)}° = ${br(r.T,2)} m
+4) D = R × AC(rad) = ${br(R,0)} × ${br(AC*Math.PI/180,4)} = ${br(r.D,2)} m · E = R × (1/cos(AC/2) − 1) = ${br(r.E,2)} m
+5) Dp = 0,7 × ${V} + ${V}² / [255 × (${br(fl)} ${i<0?'−':'+'} ${br(Math.abs(i),3)})] = ${br(r.Dp,1)} m
+6) ${i<0?'Descida: a distância de parada aumenta':i>0?'Subida: a distância de parada diminui':'Trecho em nível'} · o motorista precisa enxergar ${br(r.Dp,0)} m à frente`;}}
+});
+
+// DE-25 · Desempenho de Edificações (NBR 15575): vida útil e desempenho térmico da parede
+Academia.modulo('de',{
+teoria:`<p>A NBR 15575 mudou a pergunta de \"como construir\" para \"<b>como o imóvel precisa se comportar</b>\" durante o uso. Ela fixa requisitos de desempenho para estrutura, pisos, vedações, cobertura e instalações: segurança, conforto térmico e acústico, estanqueidade e durabilidade.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Corte da parede: o calor atravessa as camadas e cada uma soma resistência térmica">
+<rect x="180" y="30" width="30" height="160" style="fill:var(--line);stroke:var(--ink)"/><rect x="210" y="30" width="150" height="160" style="fill:var(--neg-fill);stroke:var(--ink)"/><rect x="360" y="30" width="30" height="160" style="fill:var(--line);stroke:var(--ink)"/>
+<text x="195" y="205" style="fill:var(--muted)" text-anchor="middle" font-size="10">reboco</text><text x="285" y="205" style="fill:var(--ink)" text-anchor="middle" font-size="10">tijolo / bloco</text><text x="375" y="205" style="fill:var(--muted)" text-anchor="middle" font-size="10">reboco</text>
+<path d="M60 100 L170 100" style="stroke:var(--neg);stroke-width:4"/><path d="M160 90 L175 100 L160 110Z" style="fill:var(--neg)"/><text x="60" y="88" style="fill:var(--neg)" font-size="11" font-weight="600">sol / calor</text>
+<path d="M400 100 L500 100" style="stroke:var(--amber);stroke-width:2"/><path d="M490 92 L505 100 L490 108Z" style="fill:var(--amber)"/><text x="420" y="88" style="fill:var(--amber-ink)" font-size="11" font-weight="600">U (W/m²K)</text>
+<text x="60" y="150" style="fill:var(--muted)" font-size="10">Rse = 0,04</text><text x="420" y="150" style="fill:var(--muted)" font-size="10">Rsi = 0,13</text>
+<text x="510" y="104" style="fill:var(--ink)" font-size="11">interior</text></svg><figcaption>Corte da parede: o calor atravessa as camadas e cada uma soma resistência térmica</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Vida útil de projeto (VUP)</h4><p>Por quantos anos cada sistema deve cumprir sua função com a manutenção correta. A estrutura pede no mínimo 50 anos.</p></div>
+<div class="conceito"><h4>Transmitância (U)</h4><p>Quanto calor atravessa 1 m² da parede para cada grau de diferença entre fora e dentro. Quanto menor o U, melhor a parede isola.</p></div>
+<div class="conceito"><h4>Absortância (α)</h4><p>Quanto da radiação do sol a superfície absorve. Cor clara fica perto de 0,3; cor escura passa de 0,7.</p></div></div>
+<h3>VUP mínima (NBR 15575-1)</h3>
+<div class="formula">Estrutura ≥ 50 anos · vedação vertical externa ≥ 40 · interna ≥ 20 · cobertura ≥ 20 · pisos internos ≥ 13 · hidrossanitário ≥ 20</div>
+<h3>Transmitância da parede (NBR 15220)</h3>
+<div class="formula">Resistência de cada camada: R = e / λ   (e em m, λ = condutividade em W/mK)</div>
+<div class="formula">RT = Rsi + ΣR + Rse = 0,13 + ΣR + 0,04 · U = 1 / RT</div>
+<div class="formula">Simplificado (paredes externas): zonas 1 e 2 → U ≤ 2,5 · zonas 3 a 8 → U ≤ 3,7 se α ≤ 0,6 e U ≤ 2,5 se α &gt; 0,6</div>
+<div class="dica"><b>Confira a edição vigente</b>A NBR 15575 passou por revisões e o procedimento térmico mudou em pontos. Use os limites da edição que vale para o seu projeto e, na dúvida, a simulação computacional.</div>`,
+exemplo:`<h3>Parede de tijolo maciço na zona 3</h3>
+<p>Parede externa de tijolo maciço de 9 cm (λ = 0,90 W/mK), com reboco de 2,5 cm em cada lado (λ = 1,15 W/mK). A obra fica na zona bioclimática 3 e a fachada será pintada de cor clara (α = 0,3).</p>
+<ol class="passos"><li><b>Reboco.</b> R = 0,025 / 1,15 = <b>0,0217</b> m²K/W em cada lado.</li>
+<li><b>Tijolo.</b> R = 0,09 / 0,90 = <b>0,100</b> m²K/W.</li>
+<li><b>Total.</b> RT = 0,13 + 0,0217 + 0,100 + 0,0217 + 0,04 = <b>0,3135</b> m²K/W.</li>
+<li><b>Transmitância.</b> U = 1 / 0,3135 = <b>3,19 W/m²K</b>.</li>
+<li><b>Verificação.</b> Zona 3 com α = 0,3: limite U ≤ 3,7. A parede <b>atende</b>.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Parede de concreto de 10 cm","html":"<p>Parede de concreto moldado no local com 10 cm (λ = 1,75 W/mK), sem reboco, em zona bioclimática 3, com cor clara.</p><ol class=\"passos\"><li><b>Camada.</b> R = 0,10 / 1,75 = <b>0,057</b> m²K/W.</li><li><b>Total.</b> RT = 0,13 + 0,057 + 0,04 = <b>0,227</b> m²K/W.</li><li><b>Transmitância.</b> U = 1 / 0,227 = <b>4,40 W/m²K</b>.</li><li><b>Leitura.</b> Passa do limite de 3,7: a parede <b>não atende</b> pelo procedimento simplificado. O concreto conduz o dobro de calor do tijolo, e 10 cm é pouco. A saída é simular o edifício inteiro ou acrescentar isolamento.</li></ol>"},
+{"nivel":"obra","titulo":"O cliente quer a fachada grafite","html":"<p>A parede de tijolo maciço do exemplo (U = 3,19) atendia com cor clara. Na obra, o cliente decide pintar a fachada de grafite, com α = 0,8.</p><ol class=\"passos\"><li><b>Novo limite.</b> Com α &gt; 0,6 o limite cai para <b>U ≤ 2,5</b>.</li><li><b>Situação.</b> U = 3,19 &gt; 2,5: a mesma parede passa a <b>não atender</b>.</li><li><b>Tijolo de 14 cm.</b> Com reboco de 2 cm: RT = 0,13 + 0,017 + 0,156 + 0,017 + 0,04 = 0,360 → U = <b>2,78</b>. Ainda não atende.</li><li><b>Decisão.</b> Ou a cor volta a ser clara, ou entra isolamento térmico, ou o desempenho é comprovado por simulação. A cor da fachada é uma decisão técnica, não só estética.</li></ol><div class=\"dica\"><b>Registre</b>Mudança de cor ou de material de fachada depois do projeto deve ser registrada e avaliada pelo responsável técnico.</div>"}],
+obra:{"intro":"Desempenho não é só a norma do projetista: na obra, cada troca de material, espessura ou cor mexe no que foi comprovado. E o manual de uso e manutenção entregue ao cliente é parte da norma.","erros":[["Trocar material sem avaliar","Substituir o bloco especificado por outro mais barato, com outra condutividade ou outra resistência acústica."],["Reboco mais fino","Reduzir a espessura do revestimento para ganhar prazo, o que muda transmitância, estanqueidade e durabilidade."],["Cor de fachada por gosto","Escolher cor escura em fachada calculada para cor clara, sem refazer a verificação térmica."],["Sem manual de uso","Entregar o imóvel sem o manual de uso, operação e manutenção, que define como a vida útil é alcançada."]],"checklist":["Materiais da obra iguais aos do projeto de desempenho, ou substituição avaliada","Espessuras de revestimento conferidas","Cor e absortância da fachada conforme o projeto","Ensaios de estanqueidade em fachadas e áreas molhadas quando exigidos","Prazos de garantia e VUP informados ao cliente","Manual de uso, operação e manutenção entregue com o imóvel"],"dica":"Guarde as notas fiscais e as fichas técnicas dos materiais. Numa reclamação de desempenho, é isso que mostra que a obra seguiu o que o projeto comprovou."},
+sim:{html:()=>simWrap(sel('deM','Material da parede',[['0.90','Tijolo maciço (λ 0,90)',1],['1.75','Concreto maciço (λ 1,75)'],['0.17','Concreto celular autoclavado (λ 0,17)'],['1.05','Bloco de concreto maciço equivalente (λ 1,05)']])+rng('deE','Espessura do tijolo ou bloco',5,25,0.5,9,'cm')+rng('deRi','Reboco interno',0,4,0.5,2.5,'cm')+rng('deRe','Reboco externo',0,4,0.5,2.5,'cm')+sel('deZ','Zona bioclimática',[['1','Zona 1'],['2','Zona 2'],['3','Zona 3',1],['4','Zona 4'],['5','Zona 5'],['6','Zona 6'],['7','Zona 7'],['8','Zona 8']])+sel('deA','Cor da fachada',[['0.3','Clara (α ≈ 0,3)',1],['0.5','Média (α ≈ 0,5)'],['0.8','Escura (α ≈ 0,8)']])),
+update(){const lam=+$('deM').value,e=V_('deE')/100,ri=V_('deRi')/100,re=V_('deRe')/100,z=+$('deZ').value,al=+$('deA').value,cam=[[re,1.15],[e,lam],[ri,1.15]].filter(c=>c[0]>0),r=calc.transmitancia(cam),lim=calc.limiteU(z,al),ok=r.U<=lim+1e-9;
+ $('tiles').innerHTML=tiles([['RT',br(r.RT,3)+' m²K/W'],['U da parede',br(r.U)+' W/m²K',1],['Limite',br(lim,1)+' W/m²K'],['Resultado',ok?'Atende':'Não atende',1]]);
+ const W=360,tot=re+e+ri,sc=W/Math.max(tot,0.1),x0=140;let s=T_('CORTE DA PAREDE (exterior à esquerda)',20,18),x=x0;
+ [[re,'line','reboco ext.'],[e,'neg-fill','bloco'],[ri,'line','reboco int.']].forEach(([t,c,n])=>{if(t>0){const w=t*sc;s+=`<rect x="${x}" y="40" width="${w}" height="140" style="fill:var(--${c});stroke:var(--ink)"/>`+T(x+w/2,196,n,'muted','text-anchor="middle" font-size="9"')+T(x+w/2,210,br(t*100,1)+' cm','ink','text-anchor="middle" font-size="9"');x+=w}});
+ const cor=al>0.6?'ink':al>0.4?'muted':'line';s+=`<rect x="${x0-6}" y="40" width="6" height="140" style="fill:var(--${cor})"/>`;
+ s+=T(20,90,'Exterior','ink','font-weight="600"')+T(20,106,'α = '+br(al,1),'muted','font-size="10"')+T(x+14,90,'Interior','ink','font-weight="600"');
+ const bw=Math.min(180,180*r.U/5),bl=180*lim/5;s+=Ln(x+14,130,x+194,130,'line',8)+`<rect x="${x+14}" y="126" width="${bw}" height="8" style="fill:var(--${ok?'pos':'neg'})"/>`+Ln(x+14+bl,118,x+14+bl,142,'amber',2)+T(x+14,154,'U '+br(r.U)+' · limite '+br(lim,1),ok?'pos':'neg','font-size="10" font-weight="600"');
+ $('draw').innerHTML=SVG(640,230,'Corte da parede com as camadas e a transmitância comparada ao limite',s);
+ $('memorial').textContent=`1) Camadas (R = e/λ): ${cam.map(([t,l])=>br(t,3)+'/'+br(l)+' = '+br(t/l,4)).join(' · ')}
+2) Soma das camadas: ΣR = ${br(r.Rc,4)} m²K/W
+3) RT = Rsi + ΣR + Rse = 0,13 + ${br(r.Rc,4)} + 0,04 = ${br(r.RT,4)} m²K/W
+4) U = 1 / RT = ${br(r.U,2)} W/m²K
+5) Zona ${z}, α = ${br(al,1)}: limite U ≤ ${br(lim,1)} W/m²K (procedimento simplificado)
+6) ${ok?'Parede ATENDE à transmitância':'Parede NÃO ATENDE: aumente espessura, use material isolante, clareie a cor ou comprove por simulação'}`;}}
+});
+
+// ST-26 · Segurança do Trabalho (NR-35, NR-18, zona livre de queda e taxas da NBR 14280)
+Academia.modulo('st',{
+teoria:`<p>Queda de altura está entre as principais causas de acidente grave e morte na construção. A <b>NR-35</b> vale para todo trabalho acima de <b>2 m</b> do nível inferior com risco de queda. Ela exige planejamento, treinamento, análise de risco, permissão de trabalho e, quando não há proteção coletiva, o sistema de proteção individual contra quedas.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Zona livre de queda: a soma do talabarte, do absorvedor, da altura do trabalhador e da margem precisa caber abaixo da ancoragem">
+<rect x="60" y="60" width="200" height="12" style="fill:var(--line);stroke:var(--ink)"/><line x1="60" y1="210" x2="580" y2="210" style="stroke:var(--soil);stroke-width:3"/>
+<circle cx="250" cy="30" r="6" style="fill:var(--amber);stroke:var(--ink)"/><text x="262" y="28" style="fill:var(--amber-ink)" font-size="10" font-weight="600">ancoragem</text>
+<line x1="250" y1="30" x2="360" y2="100" style="stroke:var(--steel);stroke-width:2" stroke-dasharray="5 3"/><circle cx="360" cy="112" r="8" style="fill:none;stroke:var(--ink);stroke-width:2"/><line x1="360" y1="120" x2="360" y2="160" style="stroke:var(--ink);stroke-width:2"/><line x1="360" y1="160" x2="348" y2="185" style="stroke:var(--ink);stroke-width:2"/><line x1="360" y1="160" x2="372" y2="185" style="stroke:var(--ink);stroke-width:2"/>
+<line x1="470" y1="30" x2="470" y2="185" style="stroke:var(--neg);stroke-width:2"/><line x1="462" y1="30" x2="478" y2="30" style="stroke:var(--neg)"/><line x1="462" y1="185" x2="478" y2="185" style="stroke:var(--neg)"/>
+<text x="486" y="80" style="fill:var(--neg)" font-size="10">talabarte</text><text x="486" y="96" style="fill:var(--neg)" font-size="10">+ absorvedor</text><text x="486" y="112" style="fill:var(--neg)" font-size="10">+ altura do corpo</text><text x="486" y="128" style="fill:var(--neg)" font-size="10">+ margem</text>
+<text x="70" y="54" style="fill:var(--ink)" font-size="10">laje / plataforma</text><text x="70" y="204" style="fill:var(--soil)" font-size="10">nível inferior</text></svg><figcaption>Zona livre de queda: a soma do talabarte, do absorvedor, da altura do trabalhador e da margem precisa caber abaixo da ancoragem</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Proteção coletiva primeiro</h4><p>Guarda-corpo, tela e plataforma vêm antes do cinto. O cinto é a última barreira, para quando a coletiva não é possível.</p></div>
+<div class="conceito"><h4>Zona livre de queda (ZLQ)</h4><p>O espaço livre que precisa existir abaixo do trabalhador para que o sistema pare a queda antes de ele bater em algo.</p></div>
+<div class="conceito"><h4>Fator de queda</h4><p>Queda livre dividida pelo comprimento do talabarte. Ancoragem acima da cabeça dá fator perto de 0; nos pés, perto de 2.</p></div></div>
+<h3>Números que todo canteiro usa</h3>
+<div class="formula">NR-35: trabalho em altura acima de 2 m · treinamento de 8 h com reciclagem a cada 2 anos · ASO e permissão de trabalho</div>
+<div class="formula">NR-18: guarda-corpo com travessão superior a 1,20 m, travessão intermediário e rodapé · aberturas no piso fechadas</div>
+<div class="formula">ZLQ abaixo da plataforma = talabarte + alongamento do absorvedor + altura do engate aos pés + margem − altura da ancoragem</div>
+<div class="formula">NBR 14280: TF = acidentes × 1.000.000 / HHT · TG = dias perdidos × 1.000.000 / HHT   (HHT = horas-homem trabalhadas)</div>
+<div class="dica"><b>Ancoragem alta salva</b>Prender o talabarte acima da cabeça encurta a queda, reduz o tranco no corpo e diminui a altura livre necessária. Ancorar nos pés é o pior caso.</div>`,
+exemplo:`<h3>Zona livre de queda numa laje</h3>
+<p>O trabalhador usa talabarte de 1,8 m com absorvedor que pode alongar até 1,75 m. O engate dorsal do cinto fica a 1,5 m dos pés e a margem de segurança é de 1,0 m.</p>
+<ol class="passos"><li><b>Altura total abaixo da ancoragem.</b> 1,8 + 1,75 + 1,5 + 1,0 = <b>6,05 m</b>.</li>
+<li><b>Ancoragem na altura do engate (1,5 m acima dos pés).</b> Livre necessário abaixo da laje: 6,05 − 1,5 = <b>4,55 m</b>. Queda livre: <b>1,8 m</b> (fator 1).</li>
+<li><b>Ancoragem nos pés (0 m).</b> Livre necessário: <b>6,05 m</b>. Queda livre: 1,8 + 1,5 = <b>3,3 m</b> (fator 1,8).</li>
+<li><b>Ancoragem acima da cabeça (2,5 m).</b> Livre necessário: <b>3,55 m</b>. Queda livre: <b>0,8 m</b>.</li>
+<li><b>Conclusão.</b> Subir a ancoragem de 0 para 2,5 m reduziu a altura livre em 2,5 m e a queda livre em 2,5 m.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo, com ancoragem a 1,5 m.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Taxas de acidentes do mês","html":"<p>Num mês, a obra teve 3 acidentes com afastamento, que somaram 45 dias perdidos. Foram trabalhadas 120.000 horas-homem.</p><ol class=\"passos\"><li><b>Taxa de frequência.</b> TF = 3 × 1.000.000 / 120.000 = <b>25</b> acidentes por milhão de horas.</li><li><b>Taxa de gravidade.</b> TG = 45 × 1.000.000 / 120.000 = <b>375</b> dias perdidos por milhão de horas.</li><li><b>Leitura.</b> A TF mostra quantas vezes acontece; a TG mostra o tamanho do estrago. Uma obra pode ter TF baixa e TG alta, com poucos acidentes, porém graves.</li><li><b>Uso.</b> Acompanhe as duas mês a mês: o objetivo é a tendência cair, não só bater um número.</li></ol>"},
+{"nivel":"obra","titulo":"Laje do primeiro andar com 4 m de pé-direito","html":"<p>Um armador vai trabalhar na borda da laje do primeiro andar, a 4,0 m do piso térreo. Ele prendeu o talabarte de 1,8 m com absorvedor num vergalhão de espera, na altura dos pés.</p><ol class=\"passos\"><li><b>Livre necessário.</b> Com ancoragem nos pés: <b>6,05 m</b> abaixo da laje.</li><li><b>Livre disponível.</b> Só <b>4,0 m</b> até o piso.</li><li><b>Resultado.</b> Faltam 2,05 m: numa queda, ele bate no chão antes de o sistema parar. O cinto está colocado, mas <b>não protege</b>. E vergalhão de espera não é ponto de ancoragem.</li><li><b>Solução.</b> Guarda-corpo na borda (proteção coletiva), ou ancoragem certificada acima da cabeça com trava-quedas retrátil, que limita a queda a poucos centímetros.</li></ol><div class=\"dica\"><b>Pare e reavalie</b>Se a ZLQ não fecha, o trabalho não começa. Isso é decisão da análise de risco, antes da tarefa.</div>"}],
+obra:{"intro":"Na segurança do trabalho, o acidente quase sempre tem uma sequência de pequenas falhas que todo mundo viu e ninguém parou: guarda-corpo retirado \"só por um minuto\", cinto preso em qualquer lugar, andaime sem travamento.","erros":[["Cinto sem ancoragem adequada","Prender o talabarte em vergalhão, tubo de andaime solto ou corda amarrada, sem ponto de ancoragem dimensionado."],["Ignorar a zona livre de queda","Usar talabarte com absorvedor a poucos metros do chão, onde ele não tem espaço para parar a queda."],["Guarda-corpo retirado","Tirar o guarda-corpo para passar material e não recolocar, deixando a borda aberta."],["Sem treinamento ou permissão","Mandar para o trabalho em altura quem não tem NR-35 em dia, ASO e permissão de trabalho."]],"checklist":["Análise de risco e permissão de trabalho emitidas antes da tarefa","Trabalhadores com treinamento NR-35 e ASO em dia","Guarda-corpo com travessão superior a 1,20 m, intermediário e rodapé em todas as bordas","Aberturas no piso fechadas ou protegidas","Pontos de ancoragem definidos e dimensionados por profissional habilitado","Cinto, talabarte e trava-quedas inspecionados antes do uso","Zona livre de queda conferida para o sistema usado","Plano de resgate definido para quem ficar suspenso"],"dica":"Faça o DDS (diálogo diário de segurança) no lugar onde o serviço vai acontecer, olhando para a borda, para a ancoragem e para o caminho do material. Conversa na sala da obra se esquece; na frente do risco, não."},
+sim:{html:()=>simWrap(rng('stT','Comprimento do talabarte',0.5,2,0.1,1.8,'m')+rng('stAb','Alongamento máximo do absorvedor',0,1.75,0.05,1.75,'m','Dado do fabricante')+rng('stD','Altura do engate dorsal aos pés',1.2,1.8,0.05,1.5,'m')+rng('stM','Margem de segurança',0.5,1.5,0.1,1,'m')+rng('stA','Altura da ancoragem acima dos pés',0,3,0.1,1.5,'m','0 = nos pés · 1,5 = no engate · acima = sobre a cabeça')+rng('stL','Altura livre abaixo da plataforma',1,15,0.1,6,'m')),
+update(){const r=calc.zlq(V_('stT'),V_('stAb'),V_('stD'),V_('stM'),V_('stA')),liv=V_('stL'),ok=r.abaixo<=liv+1e-9,fq=r.queda/V_('stT');
+ $('tiles').innerHTML=tiles([['ZLQ necessária',br(r.abaixo)+' m',1],['Altura disponível',br(liv)+' m'],['Queda livre',br(r.queda)+' m · fator '+br(fq,1)],['Resultado',ok?'Sistema funciona':'Bate antes de parar',1]]);
+ const sc=170/Math.max(liv+V_('stA'),r.total)*1,yA=30,yP=yA+V_('stA')*sc,yS=yP+liv*sc,yF=yA+r.total*sc;let s=T_('ZONA LIVRE DE QUEDA (escala vertical)',20,18);
+ s+=`<rect x="60" y="${yP}" width="180" height="10" style="fill:var(--line);stroke:var(--ink)"/>`+Ln(40,yS,600,yS,'soil',3)+T(66,yP-6,'plataforma','ink','font-size="10"')+T(46,yS+14,'nível inferior','soil','font-size="10"');
+ s+=`<circle cx="250" cy="${yA}" r="6" style="fill:var(--amber);stroke:var(--ink)"/>`+T(262,yA+4,'ancoragem a '+br(V_('stA'),1)+' m dos pés','amber-ink','font-size="10" font-weight="600"');
+ const xF=330,yB=yF-V_('stM')*sc;s+=Ln(250,yA,xF,yB-V_('stD')*sc,'steel',2,'stroke-dasharray="5 3"');
+ s+=`<circle cx="${xF}" cy="${yB-V_('stD')*sc-6}" r="6" style="fill:none;stroke:var(--${ok?'ink':'neg'});stroke-width:2"/>`+Ln(xF,yB-V_('stD')*sc,xF,yB-V_('stD')*sc*0.4,ok?'ink':'neg',2)+Ln(xF,yB-V_('stD')*sc*0.4,xF-8,yB,ok?'ink':'neg',2)+Ln(xF,yB-V_('stD')*sc*0.4,xF+8,yB,ok?'ink':'neg',2);
+ let y=yA;[['talabarte',V_('stT'),'steel'],['absorvedor',V_('stAb'),'amber'],['corpo',V_('stD'),'ink'],['margem',V_('stM'),'muted']].forEach(([n,v,c])=>{const h=v*sc;if(h>0.5){s+=`<rect x="440" y="${y}" width="16" height="${h}" style="fill:var(--${c});opacity:.6;stroke:var(--ink)"/>`+T(462,y+h/2+4,n+' '+br(v),'ink','font-size="10"')}y+=h});
+ s+=Ln(420,yF,600,yF,ok?'pos':'neg',2,'stroke-dasharray="6 3"')+T(540,yF+14,'fim da ZLQ',ok?'pos':'neg','font-size="10" font-weight="600"');
+ $('draw').innerHTML=SVG(640,230,'Zona livre de queda: altura necessária comparada com a altura disponível',s);
+ $('memorial').textContent=`1) Altura total abaixo da ancoragem = ${br(V_('stT'))} + ${br(V_('stAb'))} + ${br(V_('stD'))} + ${br(V_('stM'))} = ${br(r.total)} m
+2) ZLQ abaixo da plataforma = ${br(r.total)} − ${br(V_('stA'))} = ${br(r.abaixo)} m
+3) Altura livre disponível = ${br(liv)} m → ${ok?'o sistema para a queda antes do nível inferior':'FALTAM '+br(r.abaixo-liv)+' m: o trabalhador bate antes de o sistema parar'}
+4) Queda livre = talabarte − (ancoragem − engate) = ${br(V_('stT'))} − (${br(V_('stA'))} − ${br(V_('stD'))}) = ${br(r.queda)} m
+5) Fator de queda = ${br(r.queda)} / ${br(V_('stT'))} = ${br(fq,2)} ${fq>1?'(ancoragem abaixo do engate: tranco maior)':''}
+6) ${ok?'Mesmo atendendo, prefira proteção coletiva e ancoragem acima da cabeça':'Use guarda-corpo, suba a ancoragem ou troque por trava-quedas retrátil'}`;}}
+});
+
+// PA-27 · Patologia das Construções (carbonatação, corrosão, fissuras e lei de Sitter)
+Academia.modulo('pa',{
+teoria:`<p>Patologia é o estudo dos defeitos da construção: <b>sintoma</b> (o que se vê), <b>mecanismo</b> (como acontece), <b>origem</b> (em que fase nasceu) e <b>causa</b> (o que provocou). Tratar só o sintoma, como passar massa numa trinca, quase sempre faz o problema voltar.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Carbonatação: a frente avança do lado de fora para dentro até chegar à armadura">
+<rect x="80" y="40" width="440" height="150" style="fill:var(--line);stroke:var(--ink)"/><rect x="80" y="40" width="440" height="50" style="fill:var(--neg-fill)"/>
+<line x1="80" y1="90" x2="520" y2="90" style="stroke:var(--neg);stroke-width:2" stroke-dasharray="6 4"/><text x="530" y="94" style="fill:var(--neg)" font-size="10" font-weight="600">frente de carbonatação (x)</text>
+<g style="fill:var(--steel);stroke:var(--ink)"><circle cx="150" cy="115" r="9"/><circle cx="260" cy="115" r="9"/><circle cx="370" cy="115" r="9"/><circle cx="480" cy="115" r="9"/></g>
+<line x1="60" y1="40" x2="60" y2="106" style="stroke:var(--amber);stroke-width:2"/><line x1="54" y1="40" x2="66" y2="40" style="stroke:var(--amber)"/><line x1="54" y1="106" x2="66" y2="106" style="stroke:var(--amber)"/><text x="20" y="78" style="fill:var(--amber-ink)" font-size="10" font-weight="600">c</text>
+<text x="90" y="30" style="fill:var(--ink)" font-size="10">CO₂ do ar entra pela superfície</text><text x="90" y="180" style="fill:var(--muted)" font-size="10">concreto ainda alcalino: protege o aço</text></svg><figcaption>Carbonatação: a frente avança do lado de fora para dentro até chegar à armadura</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Carbonatação</h4><p>O CO₂ do ar reage com o concreto e baixa o pH. Quando a frente chega ao aço, a proteção natural acaba e a corrosão pode começar.</p></div>
+<div class="conceito"><h4>Corrosão de armadura</h4><p>A ferrugem ocupa várias vezes o volume do aço, empurra o concreto e o faz trincar e soltar. Mancha marrom e trinca ao longo da barra são sinais.</p></div>
+<div class="conceito"><h4>Fissuras</h4><p>Nem toda trinca é estrutural. Retração, variação térmica e recalque deixam desenhos diferentes. O desenho, a abertura e se ela cresce dizem a causa.</p></div></div>
+<h3>Durabilidade em números</h3>
+<div class="formula">Avanço da carbonatação: x = k × √t   (x em mm, t em anos, k depende do concreto e do ambiente)</div>
+<div class="formula">Tempo para chegar à armadura: t = (c / k)²   (c = cobrimento em mm)</div>
+<div class="formula">NBR 6118, abertura máxima de fissura (concreto armado): CAA I → 0,4 mm · CAA II e III → 0,3 mm · CAA IV → 0,2 mm</div>
+<div class="formula">Lei de Sitter: custo de corrigir cresce 5 vezes a cada fase → projeto 1 · execução 5 · manutenção preventiva 25 · corretiva 125</div>
+<div class="dica"><b>Cobrimento é o seguro</b>Como o tempo cresce com o quadrado do cobrimento, perder 10 mm de cobrimento pode tirar metade da vida útil. Espaçador na armadura é barato; recuperação estrutural, não.</div>`,
+exemplo:`<h3>Quando a carbonatação chega ao aço</h3>
+<p>Uma viga tem cobrimento de 25 mm. Ensaios com fenolftaleína em obras semelhantes indicam k = 4 mm/√ano. A estrutura tem 20 anos.</p>
+<ol class="passos"><li><b>Profundidade hoje.</b> x = 4 × √20 = 4 × 4,47 = <b>17,9 mm</b>.</li>
+<li><b>Tempo para chegar ao aço.</b> t = (25 / 4)² = 6,25² = <b>39,1 anos</b>.</li>
+<li><b>Folga.</b> Faltam 39,1 − 20 = <b>19,1 anos</b> para a frente alcançar a armadura.</li>
+<li><b>Leitura.</b> A viga ainda está protegida, mas já passou da metade do caminho. É o momento certo para uma manutenção preventiva, como pintura de proteção.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Profundidade carbonatada","html":"<p>Um pilar de 16 anos, com k = 5 mm/√ano, tem cobrimento de 30 mm.</p><ol class=\"passos\"><li><b>Fórmula.</b> x = k × √t.</li><li><b>Conta.</b> x = 5 × √16 = 5 × 4 = <b>20 mm</b>.</li><li><b>Comparação.</b> Com 30 mm de cobrimento, ainda sobram 10 mm de concreto protegendo o aço.</li><li><b>Tempo total.</b> t = (30 / 5)² = <b>36 anos</b> até a frente chegar à armadura.</li></ol>"},
+{"nivel":"obra","titulo":"Cobrimento que ficou em 15 mm","html":"<p>A mesma viga do exemplo foi projetada com 25 mm de cobrimento, mas sem espaçadores a armadura assentou e o cobrimento real ficou em 15 mm. A estrutura tem 20 anos.</p><ol class=\"passos\"><li><b>Tempo até o aço.</b> t = (15 / 4)² = <b>14,1 anos</b>, contra 39,1 anos do projeto.</li><li><b>Situação.</b> Com 20 anos, a frente já passou da armadura há cerca de 6 anos: a corrosão pode estar ativa.</li><li><b>Sintomas a procurar.</b> Manchas de ferrugem, fissuras paralelas às barras e concreto soando oco ao bater.</li><li><b>Custo.</b> Pela lei de Sitter, o espaçador custaria 5 na execução; a recuperação, agora na fase corretiva, custa cerca de <b>125</b>, 25 vezes mais.</li></ol><div class=\"dica\"><b>Na concretagem</b>Confira os espaçadores antes de liberar a forma. Pisar na armadura durante a concretagem também tira cobrimento.</div>"}],
+obra:{"intro":"A maior parte das patologias nasce na execução e no projeto, e aparece anos depois, quando a obra já foi entregue. O que se faz no canteiro hoje decide se a estrutura vai precisar de recuperação amanhã.","erros":[["Armadura sem espaçador","Cobrimento menor que o projeto, que encurta muito o tempo até a corrosão."],["Concreto com água a mais","Acrescentar água na betoneira ou no caminhão para facilitar o lançamento, aumentando a porosidade e o k da carbonatação."],["Cura malfeita","Deixar o concreto secar ao sol e ao vento nos primeiros dias, causando fissuras de retração plástica."],["Tratar só o sintoma","Fechar trinca com massa ou pintar mancha de ferrugem sem descobrir e eliminar a causa."]],"checklist":["Espaçadores na quantidade e altura do cobrimento de projeto","Relação água/cimento respeitada, sem água extra na obra","Cura úmida por pelo menos 7 dias","Juntas de dilatação e de movimentação executadas conforme o projeto","Impermeabilização em áreas molhadas, cortinas e reservatórios","Fissuras mapeadas e acompanhadas com selo ou medição antes de qualquer reparo","Manual de manutenção entregue com a periodicidade de inspeções"],"dica":"Ao avaliar uma trinca, cole um selo de gesso ou marque as pontas a lápis com a data. Se em algumas semanas o selo romper ou a trinca passar da marca, ela está ativa e precisa de diagnóstico antes do reparo."},
+sim:{html:()=>simWrap(rng('paK','Coeficiente de carbonatação k',1,10,0.1,4,'mm/√ano','Concreto bom e protegido ≈ 2 a 3 · poroso e exposto ≈ 6 a 9')+rng('paC','Cobrimento real',10,50,1,25,'mm')+rng('paI','Idade da estrutura',1,80,1,20,'anos')),
+update(){const k=V_('paK'),c=V_('paC'),id=V_('paI'),r=calc.carbonatacao(k,c,id);
+ $('tiles').innerHTML=tiles([['Profundidade hoje',br(r.x,1)+' mm'],['Cobrimento',br(c,0)+' mm'],['Tempo até o aço',br(r.t,1)+' anos',1],['Situação',r.atingiu?'Aço despassivado':'Aço protegido',1]]);
+ const x0=70,x1=560,y0=200,y1=30,tm=80,xm=Math.max(50,c*1.2),sx=t=>x0+(x1-x0)*t/tm,sy=x=>y0-(y0-y1)*Math.min(x,xm)/xm;
+ let s=T_('AVANÇO DA CARBONATAÇÃO × TEMPO',30,18)+Ln(x0,y0,x1,y0,'ink',1.5)+Ln(x0,y0,x0,y1,'ink',1.5)+T(x1-30,y0+28,'anos','muted','font-size="10"')+T(14,y1-4,'x (mm)','muted','font-size="10"');
+ for(let t=0;t<=tm;t+=10)s+=Ln(sx(t),y0,sx(t),y0+4,'ink')+T(sx(t),y0+16,t,'muted','text-anchor="middle" font-size="9"');
+ for(let v=0;v<=xm;v+=10)s+=Ln(x0-4,sy(v),x0,sy(v),'ink')+T(x0-8,sy(v)+3,v,'muted','text-anchor="end" font-size="9"');
+ let d='';for(let t=0;t<=tm;t+=1)d+=(d?' L':'M')+sx(t).toFixed(1)+' '+sy(k*Math.sqrt(t)).toFixed(1);s+=`<path d="${d}" style="fill:none;stroke:var(--neg);stroke-width:2.5"/>`;
+ s+=Ln(x0,sy(c),x1,sy(c),'steel',2,'stroke-dasharray="6 4"')+T(x1-140,sy(c)-6,'armadura (c = '+c+' mm)','steel','font-size="10" font-weight="600"');
+ if(r.t<=tm)s+=`<circle cx="${sx(r.t)}" cy="${sy(c)}" r="6" style="fill:var(--amber);stroke:var(--ink)"/>`+T(sx(r.t)+8,sy(c)+16,br(r.t,1)+' anos','amber-ink','font-weight="600"');
+ s+=Ln(sx(id),y0,sx(id),sy(r.x),'muted',1,'stroke-dasharray="3 3"')+`<circle cx="${sx(id)}" cy="${sy(r.x)}" r="5" style="fill:var(--${r.atingiu?'neg':'pos'});stroke:var(--ink)"/>`+T(sx(id)+8,sy(r.x)-8,'hoje: '+br(r.x,1)+' mm',r.atingiu?'neg':'pos','font-size="10" font-weight="600"');
+ $('draw').innerHTML=SVG(640,230,'Curva de avanço da carbonatação comparada com o cobrimento',s);
+ $('memorial').textContent=`1) Profundidade hoje: x = k × √t = ${br(k,1)} × √${id} = ${br(k,1)} × ${br(Math.sqrt(id),3)} = ${br(r.x,1)} mm
+2) Tempo até a armadura: t = (c / k)² = (${c} / ${br(k,1)})² = ${br(r.t,1)} anos
+3) ${r.atingiu?'A frente passou da armadura há '+br(-r.falta,1)+' anos: a corrosão pode estar ativa':'Faltam '+br(r.falta,1)+' anos para a frente chegar à armadura'}
+4) Cobrimento 10 mm menor (${Math.max(0,c-10)} mm): t = ${br(((Math.max(0,c-10))/k)**2,1)} anos · 10 mm maior (${c+10} mm): t = ${br(((c+10)/k)**2,1)} anos
+5) Lei de Sitter (custo relativo): projeto ${calc.sitter(0)} · execução ${calc.sitter(1)} · preventiva ${calc.sitter(2)} · corretiva ${calc.sitter(3)}
+6) ${r.atingiu?'Fase atual: manutenção corretiva (custo ~125)':(r.falta<10?'Hora da manutenção preventiva (custo ~25)':'Estrutura protegida: mantenha a inspeção periódica')}`;}}
+});
+
+// CF-28 · Cálculo e Física Aplicados (centroide, momento de inércia, Steiner e tensões de flexão)
+Academia.modulo('cf',{
+teoria:`<p>Toda viga, laje e pilar usa a mesma física: forças, momentos e a forma da seção. Duas peças com a mesma área de material podem ter resistências muito diferentes, porque o que importa na flexão é <b>onde</b> o material está em relação ao centro da seção.</p>
+<figure class="fig"><svg viewBox="0 0 640 220" xmlns="http://www.w3.org/2000/svg" font-family="JetBrains Mono,ui-monospace,monospace" font-size="11" role="img" aria-label="Seção T com o centroide e o diagrama de tensões de flexão">
+<rect x="120" y="30" width="240" height="40" style="fill:var(--line);stroke:var(--ink);stroke-width:1.5"/><rect x="200" y="70" width="80" height="130" style="fill:var(--line);stroke:var(--ink);stroke-width:1.5"/>
+<line x1="100" y1="92" x2="380" y2="92" style="stroke:var(--amber);stroke-width:2" stroke-dasharray="6 4"/><text x="386" y="96" style="fill:var(--amber-ink)" font-size="10" font-weight="600">linha neutra (centroide)</text>
+<path d="M460 30 L520 30 L470 92 L410 200 L470 200Z" style="fill:none"/><line x1="470" y1="30" x2="470" y2="200" style="stroke:var(--ink)"/>
+<path d="M470 30 L520 30 L470 92Z" style="fill:var(--steel);opacity:.45;stroke:var(--steel)"/><path d="M470 92 L380 200 L470 200Z" style="fill:var(--neg);opacity:.35;stroke:var(--neg)"/>
+<text x="526" y="34" style="fill:var(--steel)" font-size="10">compressão</text><text x="476" y="196" style="fill:var(--neg)" font-size="10">tração</text>
+<text x="230" y="54" style="fill:var(--ink)" text-anchor="middle" font-size="10">mesa</text><text x="240" y="150" style="fill:var(--ink)" text-anchor="middle" font-size="10">alma</text></svg><figcaption>Seção T com o centroide e o diagrama de tensões de flexão</figcaption></figure>
+<div class="cols"><div class="conceito"><h4>Centroide (yc)</h4><p>O ponto de equilíbrio da área da seção. Na flexão, a linha neutra passa por ele: acima comprime, abaixo traciona.</p></div>
+<div class="conceito"><h4>Momento de inércia (I)</h4><p>Mede o quanto a área está afastada do centroide. Quanto mais longe, maior o I e mais rígida a peça na flexão.</p></div>
+<div class="conceito"><h4>Módulo resistente (W)</h4><p>I dividido pela distância até a borda. Com ele, a tensão máxima sai de uma divisão: σ = M / W.</p></div></div>
+<h3>Fórmulas da seção</h3>
+<div class="formula">Centroide de figuras compostas: yc = Σ(Ai × yi) / ΣAi</div>
+<div class="formula">Retângulo em torno do próprio centro: I = b × h³ / 12</div>
+<div class="formula">Teorema de Steiner (eixos paralelos): I = Σ[ Ii + Ai × di² ]   (di = distância do centro da parte ao centroide)</div>
+<div class="formula">Tensão de flexão: σ = M × y / I = M / W   (W = I / y da borda) · 1 kN/cm² = 10 MPa</div>
+<div class="dica"><b>A altura manda</b>No retângulo, I cresce com o cubo da altura. Dobrar a altura de uma viga deixa ela 8 vezes mais rígida; dobrar a largura, só 2 vezes.</div>`,
+exemplo:`<h3>Viga T com mesa de laje</h3>
+<p>Uma viga tem alma de 20 × 40 cm e trabalha junto com uma faixa de laje de 60 × 10 cm por cima (mesa). Altura total de 50 cm. Momento fletor de 50 kN·m.</p>
+<ol class="passos"><li><b>Áreas e centros.</b> Mesa: 60 × 10 = 600 cm², centro a 45 cm da base. Alma: 20 × 40 = 800 cm², centro a 20 cm. Total: <b>1.400 cm²</b>.</li>
+<li><b>Centroide.</b> yc = (600 × 45 + 800 × 20) / 1400 = 43.000 / 1400 = <b>30,71 cm</b> da base.</li>
+<li><b>Inércia (Steiner).</b> Mesa: 5.000 + 600 × 14,29² = 127.449 · Alma: 106.667 + 800 × 10,71² = 198.503 · I = <b>325.952 cm⁴</b>.</li>
+<li><b>Módulos.</b> Embaixo: W = 325.952 / 30,71 = <b>10.612 cm³</b> · em cima: 325.952 / 19,29 = <b>16.901 cm³</b>.</li>
+<li><b>Tensões.</b> M = 5.000 kN·cm · tração embaixo: 5.000 / 10.612 = 0,471 kN/cm² = <b>4,71 MPa</b> · compressão em cima: <b>2,96 MPa</b>.</li></ol>
+<div class="dica"><b>Confira no simulador</b>Os valores iniciais são os do exemplo.</div>`,
+exemplos:[{"nivel":"facil","titulo":"Inércia de uma viga retangular","html":"<p>Viga retangular de 20 cm de largura por 40 cm de altura.</p><ol class=\"passos\"><li><b>Fórmula.</b> I = b × h³ / 12.</li><li><b>Conta.</b> I = 20 × 40³ / 12 = 20 × 64.000 / 12 = <b>106.667 cm⁴</b>.</li><li><b>Módulo resistente.</b> W = I / (h/2) = 106.667 / 20 = <b>5.333 cm³</b> (ou b × h² / 6).</li><li><b>Comparação.</b> A viga T do exemplo, com a laje junto, tem I = 325.952 cm⁴: três vezes mais, por causa da mesa longe do centro.</li></ol>"},
+{"nivel":"obra","titulo":"Caibro em pé ou deitado","html":"<p>Na obra, um caibro de madeira de 6 × 16 cm vai vencer um vão como peça de apoio. O carpinteiro quer saber se faz diferença colocar em pé ou deitado.</p><ol class=\"passos\"><li><b>Em pé (h = 16).</b> I = 6 × 16³ / 12 = <b>2.048 cm⁴</b> · W = 2.048 / 8 = <b>256 cm³</b>.</li><li><b>Deitado (h = 6).</b> I = 16 × 6³ / 12 = <b>288 cm⁴</b> · W = 288 / 3 = <b>96 cm³</b>.</li><li><b>Diferença.</b> Em pé, a peça é <b>7,1 vezes</b> mais rígida e aguenta <b>2,7 vezes</b> mais momento, com a mesma madeira.</li><li><b>Regra.</b> Peça que trabalha à flexão vai com a maior dimensão na vertical, travada lateralmente para não tombar.</li></ol><div class=\"dica\"><b>Na forma e no escoramento</b>A mesma lógica vale para as guias e os pontaletes do escoramento de laje: peça deitada flecha muito mais.</div>"}],
+obra:{"intro":"Cálculo e física não ficam só no escritório. Furar uma viga, cortar uma peça, virar uma madeira ou mudar uma carga de lugar mexe diretamente na inércia, no momento e nas tensões que o projeto previu.","erros":[["Furo na viga no lugar errado","Passar tubulação furando a viga perto da borda, onde as tensões de flexão são máximas, em vez de no meio da altura."],["Peça deitada","Montar caibro, guia ou viga de madeira com a menor dimensão na vertical, perdendo grande parte da rigidez."],["Rebaixar a viga","Cortar a altura da viga para passar duto ou ganhar pé-direito, sem saber que a inércia cai com o cubo da altura."],["Confundir unidades","Misturar kN·m com kN·cm ou kgf com kN e errar a tensão em 10 ou 100 vezes."]],"checklist":["Furos em vigas só onde o projeto permite, de preferência no meio da altura","Peças de madeira que trabalham à flexão com a maior dimensão na vertical","Nenhuma redução de seção de viga ou pilar sem consulta ao projetista","Unidades conferidas em toda conta (kN, kN·m, cm, MPa)","Mesa colaborante só considerada quando a laje está ligada à viga","Escoramento com peças na posição e na seção previstas"],"dica":"Na dúvida sobre uma conta de obra, refaça com outra unidade. Se em kN·cm e em kN·m o resultado não bate depois da conversão, o erro está nas unidades, não no concreto."},
+sim:{html:()=>simWrap(rng('cfBf','Largura da mesa bf',10,120,1,60,'cm','Igual à alma = seção retangular')+rng('cfHf','Altura da mesa hf',4,30,1,10,'cm')+rng('cfBw','Largura da alma bw',10,60,1,20,'cm')+rng('cfHw','Altura da alma hw',10,100,1,40,'cm')+rng('cfM','Momento fletor M',0,300,1,50,'kN·m')),
+update(){const bf=V_('cfBf'),hf=V_('cfHf'),bw=V_('cfBw'),hw=V_('cfHw'),M=V_('cfM'),r=calc.secaoT(bf,hf,bw,hw),Mk=M*100,si=10*Mk/r.Winf,ss=10*Mk/r.Wsup;
+ $('tiles').innerHTML=tiles([['Centroide yc',br(r.yc)+' cm'],['Inércia I',br(r.I,0)+' cm⁴',1],['Tração embaixo',br(si)+' MPa',1],['Compressão em cima',br(ss)+' MPa']]);
+ const sc=180/Math.max(r.h,bf*0.9),cx=200,yb=210,ytop=yb-r.h*sc;let s=T_('SEÇÃO E TENSÕES DE FLEXÃO',20,18);
+ s+=`<rect x="${cx-bw*sc/2}" y="${yb-hw*sc}" width="${bw*sc}" height="${hw*sc}" style="fill:var(--line);stroke:var(--ink);stroke-width:1.5"/><rect x="${cx-bf*sc/2}" y="${ytop}" width="${bf*sc}" height="${hf*sc}" style="fill:var(--line);stroke:var(--ink);stroke-width:1.5"/>`;
+ const yl=yb-r.yc*sc;s+=Ln(Math.min(cx-bf*sc/2,cx-bw*sc/2)-20,yl,Math.max(cx+bf*sc/2,cx+bw*sc/2)+20,yl,'amber',2,'stroke-dasharray="6 4"')+T(14,yl-6,'yc = '+br(r.yc,1),'amber-ink','font-size="10" font-weight="600"');
+ const xd=480,smax=Math.max(si,ss,0.01),k=100/smax;s+=Ln(xd,ytop,xd,yb,'ink',1.5)+Ln(xd-110,yl,xd+110,yl,'amber',1,'stroke-dasharray="4 3"');
+ if(M>0){s+=`<path d="M${xd} ${yl} L${xd+ss*k} ${ytop} L${xd} ${ytop}Z" style="fill:var(--steel);opacity:.45;stroke:var(--steel)"/><path d="M${xd} ${yl} L${xd-si*k} ${yb} L${xd} ${yb}Z" style="fill:var(--neg);opacity:.35;stroke:var(--neg)"/>`;
+  s+=T(xd+ss*k+6,ytop+10,br(ss)+' MPa','steel','font-size="10" font-weight="600"')+T(xd-si*k-6,yb-4,br(si)+' MPa','neg','text-anchor="end" font-size="10" font-weight="600"');}
+ s+=T(xd-60,yb+16,'M = '+br(M,0)+' kN·m','ink','font-size="10"');
+ $('draw').innerHTML=SVG(640,232,'Seção T com centroide e diagrama de tensões de flexão',s);
+ const A1=bf*hf,A2=bw*hw,y1=hw+hf/2,y2=hw/2;
+ $('memorial').textContent=`1) Áreas: mesa ${br(A1,0)} cm² (y = ${br(y1,1)}) · alma ${br(A2,0)} cm² (y = ${br(y2,1)}) · A = ${br(r.A,0)} cm²
+2) Centroide: yc = (${br(A1,0)} × ${br(y1,1)} + ${br(A2,0)} × ${br(y2,1)}) / ${br(r.A,0)} = ${br(r.yc,2)} cm da base
+3) Steiner mesa: ${br(bf*hf**3/12,0)} + ${br(A1,0)} × ${br(y1-r.yc,2)}² = ${br(bf*hf**3/12+A1*(y1-r.yc)**2,0)} cm⁴
+4) Steiner alma: ${br(bw*hw**3/12,0)} + ${br(A2,0)} × ${br(y2-r.yc,2)}² = ${br(bw*hw**3/12+A2*(y2-r.yc)**2,0)} cm⁴ · I = ${br(r.I,0)} cm⁴
+5) Módulos: W inf = ${br(r.I,0)} / ${br(r.yc,2)} = ${br(r.Winf,0)} cm³ · W sup = ${br(r.I,0)} / ${br(r.h-r.yc,2)} = ${br(r.Wsup,0)} cm³
+6) Tensões: M = ${br(Mk,0)} kN·cm → tração ${br(Mk,0)}/${br(r.Winf,0)} = ${br(si/10,3)} kN/cm² = ${br(si)} MPa · compressão ${br(ss)} MPa`;}}
 });
 
 iniciar();

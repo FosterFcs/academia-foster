@@ -23,7 +23,7 @@ for(const m of CAT.CATALOGO){const o=mods[m.id];ok(o,'módulo carregado '+m.id);
 }
 // gabaritos distribuídos (não pode estar quase tudo na mesma letra)
 const dist=[0,0,0,0];CAT.CATALOGO.forEach(m=>m.quiz.forEach(q=>dist[q.c]++));const tot=dist.reduce((a,b)=>a+b);
-ok(Math.max(...dist)/tot<0.45,'gabarito distribuído '+dist);ok(tot===300,'300 questões no banco');
+ok(Math.max(...dist)/tot<0.45,'gabarito distribuído '+dist);ok(tot===420,'420 questões no banco');
 // ---- números dos exemplos x calculadoras
 const has=(id,i,s)=>ok(txt(mods[id].exemplos[i].html).includes(s),`${id} ex${i+2} contém "${s}"`);
 let r;
@@ -46,4 +46,22 @@ r=calc.vigaAco('W 250 x 25,3',345,5,4,2,1.25,1);near(r.MRd/100,87.8,0.06,'AC2 tr
 r=calc.vigaMadeira('Dicotiledônea C40',6,16,2.5,0.5,0.6,2,0.7,0.8,0.8);near(r.sig,5.94,0.01,'MD2 σ');
 r=calc.reservatorio(300,50,1,0,true,5,1.5);has('rs',1,'DN 32');has('rs',1,'DN 40');
 r=calc.pavimento(2e7,4,null);near(r.total,67,0.5,'PV2 total');r=calc.pavimento(2e7,4,10);near(r.hn,32,0.5,'PV2 reforço');near(r.h20,10,0.5,'PV2 sub-base com reforço');
+// ---- disciplinas CG-21 a CF-28
+r=calc.cargas(10,1,1,1.5,0.3,2);near(r.pd,8.4,1e-9,'CG pd');near(r.lin,16.8,1e-9,'CG linear');near(r.pqp,4.95,1e-9,'CG qp');
+r=calc.cargas(12,1,0,2.5,0.4,2);near(r.pd,9.1,1e-9,'CG2 pd');has('cg',0,'9,1 kN/m²');has('cg',0,'18,2 kN/m');has('cg',0,'5,0 kN/m²');has('cg',1,'10,5 kN/m²');
+r=calc.proctor([[10,18.7],[12,19.71],[14,20.29],[16,20.42],[18,20.06]]);near(r.wot,14,0.05,'CS wót');near(r.gdmax,17.8,0.02,'CS γdmáx');ok(r.valido,'CS curva válida');
+r=calc.campo(17.8,14,19.6,13,100);near(r.GC,97.4,0.05,'CS GC');ok(!r.ok,'CS reprova base');ok(calc.campo(17.8,14,19.6,13,95).ok,'CS aprova aterro');
+has('cs',0,'17,39 kN/m³');has('cs',1,'21,28 kN/m³');has('cs',1,'99,0%');near(23.2/1.09,21.28,0.005,'CS2 γd');
+r=calc.bacia(12,0.6,0.8,16,10,1200,0.15,10,0.85);near(r.tc,15.15,0.02,'HI tc');near(r.i,109.3,0.1,'HI i');near(r.Q,2.19,0.005,'HI Q');
+near(calc.racional(0.95,150,0.05),0.0198,0.0001,'HI1 Q');has('hi',0,'0,0198 m³/s');has('hi',1,'1,09 m³/s');has('hi',1,'2,55 m³/s');near(calc.racional(0.7,109.3,12),2.55,0.005,'HI2');
+r=calc.estrada(60,0.08,0.15,150,40,0.33,0);near(r.Rmin,123.2,0.05,'ES Rmín');near(r.T,54.6,0.05,'ES T');near(r.D,104.7,0.05,'ES D');near(r.E,9.63,0.005,'ES E');near(r.Dp,84.8,0.05,'ES Dp');
+near(calc.estrada(80,0.08,0.14,200,30,0.3,0).Rmin,229,0.5,'ES1');has('es',0,'229 m');near(calc.estrada(60,0.08,0.15,150,40,0.33,-0.06).Dp,94.3,0.05,'ES2 desce');has('es',1,'94,3 m');has('es',1,'78,2 m');
+r=calc.transmitancia([[0.025,1.15],[0.09,0.9],[0.025,1.15]]);near(r.U,3.19,0.005,'DE U');ok(r.U<=calc.limiteU(3,0.3)&&r.U>calc.limiteU(3,0.8),'DE limites');
+near(calc.transmitancia([[0.1,1.75]]).U,4.40,0.005,'DE1');has('de',0,'4,40 W/m²K');near(calc.transmitancia([[0.02,1.15],[0.14,0.9],[0.02,1.15]]).U,2.78,0.005,'DE2');has('de',1,'2,78');
+r=calc.zlq(1.8,1.75,1.5,1,1.5);near(r.abaixo,4.55,1e-9,'ST ZLQ');near(r.queda,1.8,1e-9,'ST queda');near(calc.zlq(1.8,1.75,1.5,1,0).abaixo,6.05,1e-9,'ST pés');near(calc.zlq(1.8,1.75,1.5,1,2.5).queda,0.8,1e-9,'ST alto');
+r=calc.taxas(3,45,120000);near(r.TF,25,1e-9,'ST TF');near(r.TG,375,1e-9,'ST TG');has('st',0,'25');has('st',0,'375');has('st',1,'6,05 m');
+r=calc.carbonatacao(4,25,20);near(r.x,17.9,0.05,'PA x');near(r.t,39.1,0.05,'PA t');near(calc.carbonatacao(5,30,16).x,20,1e-9,'PA1');has('pa',0,'20 mm');has('pa',0,'36 anos');
+near(calc.carbonatacao(4,15,20).t,14.1,0.05,'PA2');has('pa',1,'14,1 anos');ok(calc.sitter(3)===125,'Sitter');
+r=calc.secaoT(60,10,20,40);near(r.yc,30.71,0.005,'CF yc');near(r.I,325952,1,'CF I');near(r.Winf,10612,1,'CF Winf');near(r.Wsup,16901,1,'CF Wsup');
+near(calc.secaoT(20,0.0001,20,40).I,106667,5,'CF1 retângulo');has('cf',0,'106.667 cm⁴');has('cf',1,'2.048 cm⁴');has('cf',1,'288 cm⁴');
 console.log(`${n-f}/${n} verificações de conteúdo passaram`);process.exit(f?1:0);

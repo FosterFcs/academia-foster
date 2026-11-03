@@ -312,6 +312,34 @@ const calc={
   // Microdrenagem: método racional + galeria circular a seção plena (Manning)
   racional(C,i,Aha){return C*i*Aha/360},
   galeria(Q,S,n=0.013){const D=(Q*n/(0.3117*Math.sqrt(S)))**(3/8),DN=[0.4,0.5,0.6,0.8,1.0,1.2,1.5,2.0].find(d=>d>=D)||null;
-    const Qp=DN?0.3117*DN**(8/3)*Math.sqrt(S)/n:0,v=DN?Qp/(Math.PI*DN*DN/4):0;return{D,DN,Qp,v,ok:!!DN&&v>=0.6&&v<=5}}
+    const Qp=DN?0.3117*DN**(8/3)*Math.sqrt(S)/n:0,v=DN?Qp/(Math.PI*DN*DN/4):0;return{D,DN,Qp,v,ok:!!DN&&v>=0.6&&v<=5}},
+  // CG-21 · Cargas (NBR 6120 / NBR 8681): carga de laje por m², combinação última normal e quase permanente
+  cargas(hcm,rev,parede,uso,psi2,faixa,gg=1.4,gq=1.4){const pp=25*hcm/100,g=pp+rev+parede,q=uso,p=g+q,pd=gg*g+gq*q,pqp=g+psi2*q;
+    return{pp,g,q,p,pd,pqp,lin:pd*faixa,linK:p*faixa}},
+  // CS-22 · Compactação: ensaio de Proctor (ajuste de parábola) e controle de campo
+  proctor(pts){const P=pts.map(([w,gh])=>[w,gh/(1+w/100)]),n=P.length;let S=[0,0,0,0,0],T=[0,0,0];
+    P.forEach(([x,y])=>{for(let k=0;k<5;k++)S[k]+=x**k;for(let k=0;k<3;k++)T[k]+=y*x**k});
+    const [c,b,a]=calc.resolver([[S[0],S[1],S[2]],[S[1],S[2],S[3]],[S[2],S[3],S[4]]],T),wot=-b/(2*a),gdmax=c+b*wot+a*wot*wot;
+    return{gd:P.map(p=>p[1]),a,b,c,wot,gdmax,valido:a<0&&wot>Math.min(...pts.map(p=>p[0]))&&wot<Math.max(...pts.map(p=>p[0]))}},
+  campo(gdmax,wot,gh,w,esp,tolw=2){const gd=gh/(1+w/100),GC=100*gd/gdmax,dw=w-wot;return{gd,GC,dw,okGC:GC>=esp-1e-9,okW:Math.abs(dw)<=tolw+1e-9,ok:GC>=esp-1e-9&&Math.abs(dw)<=tolw+1e-9}},
+  // HI-23 · Hidrologia: Kirpich, equação IDF e método racional
+  kirpich(Lkm,Hm){return 57*(Lkm**3/Hm)**0.385},
+  idf(K,a,b,c,T,t){return K*T**a/(t+b)**c},
+  bacia(Aha,C,Lkm,Hm,T,K,a,b,c){const tcK=calc.kirpich(Lkm,Hm),tc=Math.max(10,tcK),i=calc.idf(K,a,b,c,T,tc),Q=calc.racional(C,i,Aha);return{tcK,tc,i,Q,Ql:Q*1000}},
+  // ES-24 · Estradas: raio mínimo, elementos da curva circular e distância de visibilidade de parada
+  estrada(V,e,f,R,AC,fl,i){const Rmin=V*V/(127*(e+f)),r=AC*Math.PI/180,T=R*Math.tan(r/2),D=R*r,E=R*(1/Math.cos(r/2)-1),Dp=0.7*V+V*V/(255*(fl+i));
+    return{Rmin,T,D,E,Dp,ok:R>=Rmin-1e-9}},
+  // DE-25 · Desempenho térmico (NBR 15575-4 / NBR 15220): transmitância da parede
+  transmitancia(camadas,Rsi=0.13,Rse=0.04){const Rc=camadas.reduce((s,[e,l])=>s+e/l,0),RT=Rsi+Rc+Rse,U=1/RT;return{Rc,RT,U}},
+  limiteU(zona,alfa){return zona<=2?2.5:(alfa<=0.6?3.7:2.5)},
+  // ST-26 · Segurança: zona livre de queda e taxas de acidentes (NBR 14280)
+  zlq(talabarte,absorvedor,hD,margem,hAnc){const total=talabarte+absorvedor+hD+margem,abaixo=total-hAnc,queda=Math.max(0,talabarte-(hAnc-hD));return{total,abaixo,queda}},
+  taxas(acid,dias,hht){return{TF:acid*1e6/hht,TG:dias*1e6/hht}},
+  // PA-27 · Patologia: carbonatação x = k·√t e lei de Sitter
+  carbonatacao(k,c,idade){const x=k*Math.sqrt(idade),t=(c/k)**2;return{x,t,falta:t-idade,atingiu:x>=c}},
+  sitter(fase){return 5**fase},
+  // CF-28 · Cálculo e física: seção T (centroide, inércia e módulos resistentes)
+  secaoT(bf,hf,bw,hw){const A1=bf*hf,A2=bw*hw,y1=hw+hf/2,y2=hw/2,A=A1+A2,yc=(A1*y1+A2*y2)/A,h=hf+hw,
+    I=bf*hf**3/12+A1*(y1-yc)**2+bw*hw**3/12+A2*(y2-yc)**2;return{A,yc,I,h,Winf:I/yc,Wsup:I/(h-yc)}}
 };
 // CALC-END

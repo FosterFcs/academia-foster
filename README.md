@@ -1,6 +1,6 @@
 # Academia Foster de Engenharia
 
-**Engenharia civil descomplicada.** App instalável (PWA) com 16 disciplinas. Cada uma tem teoria em linguagem simples, exemplo resolvido, simulador com memorial de cálculo e quiz. Inclui um simulado geral e a Bancada SIG de topografia.
+**Engenharia civil descomplicada.** App instalável (PWA) com 28 disciplinas. Cada uma tem teoria em linguagem simples, exemplo resolvido, simulador com memorial de cálculo e quiz. Inclui um simulado geral e a Bancada SIG de topografia.
 
 Funciona no celular e no computador, pode ser instalado na tela inicial e continua funcionando sem internet depois da primeira visita.
 

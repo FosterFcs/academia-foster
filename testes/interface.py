@@ -21,10 +21,10 @@ with sync_playwright() as p:
                 pg.locator(f'#trilha details:has([data-m="{m}"]) summary').click()
             loc.click();esperar(pg)
         ok('O que você quer aprender' in pg.inner_text('#main'),f'{w}: tela inicial')
-        ok(len(pg.query_selector_all('#main .card-mod'))==20,f'{w}: 20 cards na tela inicial')
+        ok(len(pg.query_selector_all('#main .card-mod'))==28,f'{w}: 28 cards na tela inicial')
         pg.click('#main .card-mod[data-m="lj"]');ok('LJ-09' in pg.inner_text('.mod-head'),f'{w}: card abre módulo')
         mods=pg.eval_on_selector_all('#trilha [data-m]','e=>e.map(x=>x.dataset.m)')
-        ok(len(mods)==22,f'{w}: 22 itens na trilha ({len(mods)})')
+        ok(len(mods)==30,f'{w}: 30 itens na trilha ({len(mods)})')
         for m in mods:
             if m in('sim','inicio'): continue
             go(m)
