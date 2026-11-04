@@ -5,7 +5,7 @@ const Cert={
   ERROS:{login_necessario:'Entre na sua conta para fazer a prova.',modulo_sem_prova:'A prova desta disciplina ainda não está disponível.',ja_aprovado:'Você já foi aprovado nesta disciplina.',
     limite_tentativas:'Você já usou as 2 tentativas das últimas 24 horas.',tentativa_inexistente:'Não encontrei esta prova. Recarregue a página.',tentativa_encerrada:'Esta prova já foi enviada.',
     prova_nao_aprovada:'É preciso ser aprovado na prova antes de pedir o certificado.',nome_invalido:'Informe o nome completo, com nome e sobrenome.',cpf_invalido:'CPF inválido. Confira os números.',
-    sem_permissao:'Sem permissão.',certificado_nao_pendente:'Este pedido já foi resolvido.',pacote_invalido:'Pacote inválido.',compra_nao_pendente:'Este pedido de pacote já foi resolvido.'},
+    sem_permissao:'Sem permissão.',certificado_nao_pendente:'Este pedido já foi resolvido.',pacote_invalido:'Pacote inválido.',compra_nao_pendente:'Este pedido de pacote já foi resolvido.',poucas_disciplinas:'Você ainda não tem disciplinas aprovadas suficientes.'},
   erro(e){return this.ERROS[e&&e.raw]||(e&&e.message)||'Não foi possível concluir agora.'},
   rpc(fn,body={},auth=true){return Conta.req('/rest/v1/rpc/'+fn,{method:'POST',body,auth})},
   url(cod){return location.origin+location.pathname.replace(/index\.html$/,'')+'validar.html?c='+encodeURIComponent(cod)},
@@ -60,7 +60,7 @@ const Cert={
   // ---------- aba Certificado
   requisitos(m){return `<div class="cols"><div class="conceito"><h4>1 · Estude</h4><p>Teoria, os 3 exemplos, o simulador e a aba Na obra. Responda as 15 questões do quiz.</p></div>
     <div class="conceito"><h4>2 · Faça a prova</h4><p>${this.PROVA_Q} questões sorteadas, 30 minutos e nota mínima ${this.MINIMO}. São 2 tentativas a cada 24 horas.</p></div>
-    <div class="conceito"><h4>3 · Receba o certificado</h4><p>Curso livre de ${this.CARGA} horas, com código e QR code para qualquer pessoa conferir a autenticidade. Avulso por R$ ${br(this.preco)}, ou em pacotes a partir de R$ 3,00 por certificado.</p></div></div>`},
+    <div class="conceito"><h4>3 · Receba o certificado</h4><p>Curso livre de ${this.CARGA} horas, com código e QR code para qualquer pessoa conferir a autenticidade. Avulso por R$ ${br(this.preco)}, ou em pacotes a partir de R$ 3,00 por certificado.</p></div></div><p class="nota">Aprovado em 5 ou mais disciplinas? Na página da sua conta você pode pedir o <b>Certificado de Conclusão</b>: um certificado só, com todas elas e a carga horária somada.</p>`},
   async render(m,p){
     const cab=`<p>A prova e o estudo são grátis. Você paga só se quiser o certificado, depois de aprovado.</p>${this.requisitos(m)}`;
     if(!Conta.ativo){p.innerHTML=cab+`<p class="nota">A certificação funciona no app publicado: <b>fosterfcs.github.io/academia-foster</b>. Nesta prévia ela fica desativada.</p>`;return}
@@ -128,21 +128,64 @@ const Cert={
   async painelConta(sec){if(!sec||!Conta.ativo||!Conta.logado)return;const box=document.createElement('div');box.id='ceConta';sec.appendChild(box);
     try{const [meus,adm]=await Promise.all([this.rpc('acad_meus_certificados'),this.rpc('acad_eh_admin').catch(()=>false)]);
       if(!document.body.contains(box))return;
-      let h=`<h3>Meus certificados</h3>`+(meus.length?`<div class="tbl-wrap"><table class="ed"><thead><tr><th>Disciplina</th><th>Código</th><th>Situação</th><th></th></tr></thead><tbody>${meus.map(c=>{const m=modById(c.modulo);return `<tr><td>${m?m.cod+' · '+m.nome:c.modulo}</td><td class="mono">${c.codigo}</td><td>${c.status==='emitido'?'Emitido em '+this.data(c.emitido_em):'Aguardando crédito'}</td><td>${c.status==='emitido'?`<a href="${this.url(c.codigo)}" target="_blank" rel="noopener">Abrir</a>`:`<button class="chip" data-ir="${c.modulo}">Ver pagamento</button>`}</td></tr>`}).join('')}</tbody></table></div>`:`<p class="nota">Nenhum certificado ainda. Em cada disciplina, a aba Certificado mostra como conseguir o seu.</p>`);
+      let h=`<h3>Meus certificados</h3>`+(meus.length?`<div class="tbl-wrap"><table class="ed"><thead><tr><th>Disciplina</th><th>Código</th><th>Situação</th><th></th></tr></thead><tbody>${meus.map(c=>{const m=modById(c.modulo);return `<tr><td>${c.modulo==='conclusao'?'Certificado de Conclusão · '+c.n+' disciplinas ('+c.carga+' h)':m?m.cod+' · '+m.nome:c.modulo}</td><td class="mono">${c.codigo}</td><td>${c.status==='emitido'?'Emitido em '+this.data(c.emitido_em):c.modulo==='conclusao'?'Aguardando o Pix':'Aguardando crédito'}</td><td>${c.status==='emitido'?`<a href="${this.url(c.codigo)}" target="_blank" rel="noopener">Abrir</a>`:c.modulo==='conclusao'?'':`<button class="chip" data-ir="${c.modulo}">Ver pagamento</button>`}</td></tr>`}).join('')}</tbody></table></div>`:`<p class="nota">Nenhum certificado ainda. Em cada disciplina, a aba Certificado mostra como conseguir o seu.</p>`);
       await this.carteira();if(!document.body.contains(box))return;
-      h+=`<h3>Créditos de certificado</h3><div id="ceCart">${this.htmlCarteira(this.cart)}</div>`;
+      h+=`<h3>Certificado de Conclusão</h3><div id="ccBox"><p class="carregando">Consultando suas disciplinas aprovadas…</p></div><h3>Créditos de certificado</h3><div id="ceCart">${this.htmlCarteira(this.cart)}</div>`;
       if(adm)h+=`<h3>Painel do instrutor</h3><div id="ceAdm"><p class="carregando">Carregando pedidos…</p></div>`;
       box.innerHTML=h;this.ligarCarteira(box,()=>{box.remove();this.painelConta(sec)});box.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.ir;st.tab='cert';render()});
+      this.conclusao($('ccBox'),()=>{box.remove();this.painelConta(sec)});
       if(adm)this.admin($('ceAdm'))}catch(e){if(document.body.contains(box))box.innerHTML=`<h3>Meus certificados</h3><p class="nota">${esc(this.erro(e))}</p>`}},
   htmlResumo(r){if(!r)return'';const dd=d=>d.dia.slice(8,10)+'/'+d.dia.slice(5,7);
     return `<h4>Alunos e certificados</h4><p class="nota">Visitantes: cada aparelho que abriu o app conta uma vez, mesmo sem conta. Alunos: cada conta conta uma vez, no primeiro uso; contas de instrutor ficam de fora. Abrir de novo ou entrar de novo não soma.</p>`+
       (r.visitantes!=null?tiles([['Visitantes (aparelhos)',r.visitantes,1],['Visitantes hoje',r.vis_hoje],['Em 7 dias',r.vis_7],['Em 30 dias',r.vis_30]]):'')+tiles([['Alunos cadastrados',r.alunos,1],['Novos hoje',r.novos_hoje],['Novos em 7 dias',r.novos_7],['Novos em 30 dias',r.novos_30]])+
       tiles([['Certificados emitidos',r.certificados,1],['Emitidos hoje',r.cert_hoje],['Emitidos em 7 dias',r.cert_7],['Provas aprovadas',r.aprovadas+' de '+r.provas]])+
       `<div class="tbl-wrap"><table class="ed"><thead><tr><th>Dia</th><th>Visitantes</th><th>Alunos novos</th><th>Certificados</th></tr></thead><tbody>${r.dias.slice().reverse().map(d=>`<tr><td class="mono">${dd(d)}</td><td>${d.vis?'<b>'+d.vis+'</b>':'·'}</td><td>${d.novos?'<b>'+d.novos+'</b>':'·'}</td><td>${d.certs?'<b>'+d.certs+'</b>':'·'}</td></tr>`).join('')}</tbody></table></div><h4>Pagamentos</h4>`},
+  // ---------- Certificado de Conclusão: junta as disciplinas aprovadas num certificado só (mínimo 5), preço por faixa, Pix próprio
+  faixasHtml(fx){return (fx||[]).map((f,i,a)=>`<span class="chip off">${f.min}${a[i+1]?' a '+(a[i+1].min-1):' ou mais'} disciplinas: R$ ${br(f.valor)}</span>`).join('')},
+  async conclusao(el,recarregar){if(!el)return;let c;try{c=await this.rpc('acad_conclusao')}catch(e){el.innerHTML=`<p class="nota">${esc(this.erro(e))}</p>`;return}
+    if(!document.body.contains(el))return;
+    const nome=x=>{const m=modById(x.modulo);return m?m.cod+' · '+m.nome:x.modulo},
+      lista=`<details class="mini"><summary>${c.n} disciplina${c.n===1?'':'s'} aprovada${c.n===1?'':'s'}</summary><ul>${c.aprovadas.map(x=>`<li>${esc(nome(x))} · nota ${x.nota}</li>`).join('')}</ul></details>`;
+    let h=`<p>Um certificado só, com todas as disciplinas em que você foi aprovado e a carga horária somada (${this.CARGA} horas cada). Vale a partir de ${c.minimo} disciplinas e não usa créditos.</p><div class="presets">${this.faixasHtml(c.faixas)}</div>`;
+    h+=(c.emitidos||[]).map(x=>`<p class="pill ok">Emitido em ${this.data(x.emitido_em)}: ${x.n} disciplinas, ${x.carga} horas. <a href="${this.url(x.codigo)}" target="_blank" rel="noopener">Abrir e imprimir</a></p>`).join('');
+    const pd=c.pendente;
+    if(pd&&pd.compra){const cp=pd.compra,px=c.pix&&c.pix.chave?this.pix({chave:c.pix.chave,nome:c.pix.nome,cidade:c.pix.cidade,valor:cp.valor,txid:cp.codigo}):null,
+        z=this.zap(c,`Olá, Wilson! Paguei o Certificado de Conclusão ${cp.codigo} (${pd.n} disciplinas, R$ ${br(cp.valor)}) da Academia Foster. Segue o comprovante.`);
+      h+=`<h4>Pagamento do certificado de conclusão</h4><p>Em nome de <b>${esc(pd.nome)}</b> · ${pd.n} disciplinas · ${pd.carga} horas · pedido <b class="mono">${cp.codigo}</b> · valor <b>R$ ${br(cp.valor)}</b>.</p>
+      ${px?`<div class="pix"><div class="pix-qr" id="ccPixQr" aria-label="QR code do Pix"></div><div><p><b>Pague com Pix</b> pelo QR code ou pelo código copia e cola:</p><textarea id="ccPix" readonly rows="3">${px}</textarea><div class="presets"><button class="btn" id="ccCopia">Copiar código Pix</button></div><p class="nota" id="ccMsg"></p></div></div>`:''}
+      <p id="ccDepois">Depois de pagar, ${z?`<a href="${z}" target="_blank" rel="noopener">envie o comprovante pelo WhatsApp</a>`:'envie o comprovante para comercial@fosterconstrucoes.com.br'}. O certificado sai assim que o pagamento for confirmado.</p>
+      <div class="presets"><button class="btn sec" id="ccVer">Já paguei: verificar de novo</button></div>`;
+      if(c.n>pd.n)h+=`<p class="nota">Você foi aprovado em mais disciplinas depois deste pedido. Para incluí-las, atualize o pedido:</p>`;
+      h+=`<details class="mini"${c.n>pd.n?' open':''}><summary>${c.n>pd.n?'Atualizar o pedido com as '+c.n+' disciplinas':'Corrigir o nome ou o CPF'}</summary>${this.formConclusao(pd.nome,c)}</details>`}
+    else if(c.n>=c.minimo)h+=`<h4>Você já pode pedir: ${c.n} disciplinas, ${c.carga} horas, R$ ${br(c.valor)}</h4>${lista}${this.formConclusao('',c)}`;
+    else h+=`<p class="nota">Você tem ${c.n} de ${c.minimo} disciplinas aprovadas. Falta${c.minimo-c.n>1?'m':''} ${c.minimo-c.n} para liberar.</p>${c.n?lista:''}`;
+    el.innerHTML=h;
+    const f=$('ccForm');if(f){const cpf=$('ccCpf'),er=$('ccErro');cpf.oninput=()=>{cpf.value=this.cpfMascara(cpf.value)};
+      f.onsubmit=async ev=>{ev.preventDefault();const nm=$('ccNome').value.trim().replace(/\s+/g,' '),falha=t=>{er.textContent=t;er.hidden=false};
+        if(nm.length<5||!nm.includes(' '))return falha(this.ERROS.nome_invalido);if(!this.cpfValido(cpf.value))return falha(this.ERROS.cpf_invalido);if(!$('ccAceite').checked)return falha('Marque a autorização para emitir o certificado.');
+        const b=$('ccPedir');b.disabled=true;try{await this.rpc('acad_solicitar_conclusao',{p_nome:nm,p_cpf:cpf.value});this.conclusao(el,recarregar)}catch(e){b.disabled=false;falha(this.erro(e))}}}
+    if(pd&&pd.compra){const cp=pd.compra;$('ccVer').onclick=()=>this.conclusao(el,recarregar);
+      if($('ccPixQr')){this.qr($('ccPixQr'),$('ccPix').value);$('ccCopia').onclick=()=>copiar($('ccPix'),$('ccMsg'))}
+      const auto=async extra=>{let r=null;try{r=await this.cobrar(cp.codigo,extra)}catch(e){return}const dp=$('ccDepois'),qr=$('ccPixQr');if(!dp||!qr)return;
+        if(r&&r.pago){this.conclusao(el,recarregar);return}
+        if(r&&(r.precisa_cpf||r.erro==='cpf_invalido')){dp.innerHTML=`<b>Para gerar o Pix com liberação automática</b>, informe o CPF de quem vai pagar (só na primeira vez): <input id="ccCpfPix" inputmode="numeric" placeholder="000.000.000-00" style="max-width:200px"> <button class="btn" id="ccCpfOk">Gerar Pix automático</button>`;
+          $('ccCpfPix').oninput=e=>{e.target.value=this.cpfMascara(e.target.value)};$('ccCpfOk').onclick=()=>{const v=$('ccCpfPix').value;if(!this.cpfValido(v))return;$('ccCpfOk').disabled=true;auto({cpf:v.replace(/\D/g,''),nome:pd.nome})};return}
+        if(!(r&&r.pix&&r.pix.payload))return;
+        qr.innerHTML=`<img alt="QR code do Pix" style="width:100%" src="data:image/png;base64,${r.pix.imagem}">`;$('ccPix').value=r.pix.payload;
+        dp.innerHTML='<b>⏳ Aguardando o pagamento…</b> O certificado sai sozinho, em poucos segundos, assim que o Pix cair. Não precisa mandar comprovante.';
+        let n=0;const t=setInterval(async()=>{if(!document.body.contains(dp)||++n>120){clearInterval(t);return}
+          try{const x=await this.rpc('acad_conclusao');if(!x.pendente||!x.pendente.compra||x.pendente.compra.codigo!==cp.codigo){clearInterval(t);aviso('Pagamento confirmado! Certificado de Conclusão emitido.');recarregar()}}catch(e){}},5000)};
+      auto()}},
+  formConclusao(nome,c){return `<form id="ccForm" class="lista form-conta" novalidate>
+    <div class="campo"><label for="ccNome">Nome completo</label><input id="ccNome" autocomplete="name" value="${esc(nome)}" maxlength="120" required></div>
+    <div class="campo"><label for="ccCpf">CPF</label><input id="ccCpf" inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required></div>
+    <label class="chk"><input type="checkbox" id="ccAceite"> Autorizo o uso do meu nome e CPF neste certificado. O CPF aparece parcialmente oculto na página de validação.</label>
+    <p class="pill alerta" id="ccErro" hidden role="alert"></p>
+    <div class="presets"><button class="btn" type="submit" id="ccPedir">${nome?'Atualizar o pedido':'Gerar o Pix do certificado (R$ '+br(c.valor)+')'}</button></div></form>`},
   async admin(el){
     const desenhar=async(msg)=>{let lst,certs,rs=null;try{[lst,certs,rs]=await Promise.all([this.rpc('acad_admin_compras'),this.rpc('acad_admin_pendentes'),this.rpc('acad_admin_resumo').catch(()=>null)])}catch(e){el.innerHTML=`<p class="pill alerta">${esc(this.erro(e))}</p>`;return}
       const pend=lst.filter(c=>c.status==='pendente'),pagas=lst.filter(c=>c.status==='pago'),tot=pagas.reduce((s,c)=>s+Number(c.valor),0),emit=certs.filter(c=>c.status==='emitido').slice(0,20);
-      const nm=c=>{const m=modById(c.modulo);return m?m.cod+' · '+m.nome:c.modulo};
+      const nm=c=>{if(c.modulo==='conclusao')return 'Certificado de Conclusão';const m=modById(c.modulo);return m?m.cod+' · '+m.nome:c.modulo};
       el.innerHTML=(msg?`<p class="pill ok" role="status">${esc(msg)}</p>`:'')+this.htmlResumo(rs)+tiles([['Aguardando pagamento',pend.length],['Pacotes pagos',pagas.length],['Recebido',R$(tot),1],['Certificados emitidos',certs.filter(c=>c.status==='emitido').length]])+
         (pend.length?`<p class="nota">Confira o Pix no seu banco pelo código do pedido (vai no identificador do Pix) antes de confirmar.</p><div class="tbl-wrap"><table class="ed"><thead><tr><th>Pedido</th><th>Aluno</th><th>Pacote</th><th>Valor</th><th>Data</th><th></th></tr></thead><tbody>${pend.map(c=>`<tr><td class="mono">${c.codigo}</td><td>${esc(c.nome||'—')}<br><small>${esc(c.email||'')}</small></td><td>${c.creditos} crédito${c.creditos>1?'s':''}</td><td class="num">${R$(c.valor)}</td><td>${this.hora(c.solicitado_em)}</td><td><button class="chip" data-ok="${c.codigo}">Confirmar pagamento</button> <button class="chip" data-no="${c.codigo}">Cancelar</button></td></tr>`).join('')}</tbody></table></div>`:`<p class="nota">Nenhum pagamento aguardando confirmação.</p>`)+
         (emit.length?`<details class="mini"><summary>Últimos certificados emitidos</summary><ul>${emit.map(c=>`<li><span class="mono">${c.codigo}</span> · ${esc(c.nome)} · ${nm(c)} · ${this.data(c.emitido_em)}</li>`).join('')}</ul></details>`:'');

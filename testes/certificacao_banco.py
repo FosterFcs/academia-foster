@@ -16,7 +16,7 @@ try:
     c=banco(dsn)
     for m in ['et']:
         for k in range(6):c.execute('insert into acad_prova_questoes(modulo,p,o,c) values(%s,%s,%s,0)',(m,f'q{k}',json.dumps(['certa','x'])))
-    U={nome:str(uuid.uuid4()) for nome in ['ana','bia','wil']}
+    U={nome:str(uuid.uuid4()) for nome in ['ana','bia','wil','cris']}
     for nome,i in U.items():c.execute('insert into auth.users values(%s,%s)',(i,nome+'@x.com' if nome!='wil' else 'fosterconstrutora@gmail.com'))
     def como(quem):
         c.execute('reset role');
@@ -116,6 +116,29 @@ try:
     try:c.execute('select count(*) from acad_visitantes');ok(False,'anônimo não lê visitantes')
     except psycopg.Error:ok(True,'anônimo não lê visitantes')
     r,e=rpc(None,'acad_admin_resumo');ok(e is not None,'anônimo não vê o resumo')
+    # ---- certificado de conclusão (mínimo 5 disciplinas, preço por faixa, Pix próprio)
+    c.execute('reset role')
+    for m in ['x1','x2','x3','x4','x5']:
+        for k in range(10):c.execute('insert into acad_prova_questoes(modulo,p,o,c) values(%s,%s,%s,0)',(m,f'q{k}',json.dumps(['certa','x','y','z'])))
+    for i,m in enumerate(['x1','x2','x3','x4']):
+        pc,e=rpc('cris','acad_iniciar_prova',m);rpc('cris','acad_enviar_prova',pc['tentativa'],responder(pc,7+i%3))
+    r,e=rpc('cris','acad_solicitar_conclusao','Cris Teste Lima','52998224725');ok(e=='poucas_disciplinas','conclusão exige 5 disciplinas: '+str(e))
+    pc,e=rpc('cris','acad_iniciar_prova','x5');rpc('cris','acad_enviar_prova',pc['tentativa'],responder(pc,10))
+    s0=rpc('cris','acad_carteira')[0]['saldo']
+    cc,e=rpc('cris','acad_conclusao');ok(cc['n']==5 and cc['carga']==20 and float(cc['valor'])==24.9 and cc['pendente'] is None,f'situação da conclusão {cc}')
+    k,e=rpc('cris','acad_solicitar_conclusao','Cris Teste Lima','52998224725');ok(e is None and k['n']==5 and float(k['valor'])==24.9,f'pedido da conclusão {k} {e}')
+    cc,e=rpc('cris','acad_conclusao');ok(cc['pendente'] and cc['pendente']['compra']['codigo']==k['compra'],'pedido pendente com Pix')
+    ok(rpc('cris','acad_carteira')[0]['compra'] is None,'pedido da conclusão não aparece como pacote de créditos')
+    rpc('cris','acad_comprar_pacote','p1');cc,e=rpc('cris','acad_conclusao');ok(cc['pendente']['compra'] is not None,'comprar pacote não cancela o Pix da conclusão')
+    k2,e=rpc('cris','acad_solicitar_conclusao','Cris Teste Lima','52998224725');ok(k2['codigo']==k['codigo'] and k2['compra']!=k['compra'],'pedir de novo reaproveita o certificado')
+    r,e=rpc('wil','acad_admin_compra',k2['compra'],'confirmar');ok(r and r['emitidos']==1,f'Pix confirmado emite a conclusão {r} {e}')
+    v,e=rpc(None,'acad_validar',k['codigo']);ok(v and v['modulo']=='conclusao' and len(v['modulos'])==5 and v['carga']==20,f'validação da conclusão {v}')
+    ok(rpc('cris','acad_carteira')[0]['saldo']==s0,'conclusão não mexe nos créditos')
+    c.execute('reset role');ok(c.execute("select count(*) from acad_certificados where user_id=%s and modulo='conclusao' and usou_credito",(U['cris'],)).fetchone()[0]==0,'conclusão não usa crédito')
+    m,e=rpc('cris','acad_meus_certificados');ok(any(x['modulo']=='conclusao' and x['n']==5 for x in m),'aparece em meus certificados')
+    k3,e=rpc('cris','acad_solicitar_conclusao','Cris Teste Lima','52998224725');ok(k3['codigo']!=k['codigo'],'depois de emitido, um novo pedido gera outro certificado')
+    r,e=rpc('cris','acad_solicitar_conclusao','Cris','52998224725');ok(e=='nome_invalido','nome validado')
+    r,e=rpc(None,'acad_solicitar_conclusao','Cris Teste Lima','52998224725');ok(e is not None,'anônimo não pede conclusão')
     # cancelar pedido de pacote
     k3,e=rpc('bia','acad_comprar_pacote','p1');r,e=rpc('wil','acad_admin_compra',k3['codigo'],'cancelar');ok(r['status']=='cancelado' and rpc('bia','acad_carteira')[0]['compra'] is None,'cancelar pedido')
     # tabelas novas fechadas

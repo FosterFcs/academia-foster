@@ -74,6 +74,7 @@ button,.btn{font:600 .95rem var(--f-body);padding:10px 16px;border:1.5px solid v
 .dados div{background:var(--sheet);border:1px solid var(--line);padding:10px 12px}
 .dados span{display:block;font-family:var(--f-mono);font-size:.68rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
 .nota{color:var(--muted);font-size:.9rem}
+.f-lista ol{margin:4px 0 0;padding-left:18px;columns:2;column-gap:22px;font-size:.7rem;line-height:1.45}.f-lista li i{color:var(--c-claro);font-style:normal}.f-muitas ol{columns:3;font-size:.58rem;line-height:1.32;padding-left:16px}.f-muitas .f-nome{}
 @media print{@page{size:A4 landscape;margin:0}body{background:#fff}.barra,form.busca,.acoes,.status,.dados,.nota{display:none!important}main{padding:0;max-width:none}html,body{margin:0;padding:0;height:210mm;overflow:hidden}.folha-wrap{overflow:visible;padding:0;margin:0}.folha{width:1000px;height:707px;aspect-ratio:auto;zoom:1.1225;border:0;box-shadow:none;margin:0;break-after:avoid;-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 </style>
 </head>
@@ -101,10 +102,11 @@ async function validar(cod){
   try{const r=await fetch(CFG.url+'/rest/v1/rpc/acad_validar',{method:'POST',headers:{apikey:CFG.chave,'Content-Type':'application/json'},body:JSON.stringify({p_codigo:cod})});if(!r.ok)throw new Error(r.status);const tx=await r.text();c=tx?JSON.parse(tx):null}
   catch(e){out.innerHTML='<p class="status erro">Não consegui consultar agora. Verifique a internet e tente de novo.</p>';return}
   if(!c){out.innerHTML=`<p class="status erro">Certificado <b>${esc(cod)}</b> não encontrado. Ele pode ter sido digitado errado ou ainda não ter sido emitido.</p>`;return}
-  const m=CATALOGO.find(x=>x.id===c.modulo)||{cod:'',nome:c.modulo,titulo:''},tp=await topicos(c.modulo),url=location.origin+location.pathname+'?c='+cod;
+  const conc=c.modulo==='conclusao',ds=conc?(c.modulos||[]).map(x=>({...x,m:CATALOGO.find(y=>y.id===x.modulo)||{cod:'',nome:x.modulo}})):[],
+    m=conc?{cod:'',nome:'Certificado de Conclusão',titulo:''}:CATALOGO.find(x=>x.id===c.modulo)||{cod:'',nome:c.modulo,titulo:''},tp=conc?[]:await topicos(c.modulo),url=location.origin+location.pathname+'?c='+cod;
   history.replaceState(null,'','?c='+cod);document.title='Certificado '+cod+' · Academia Foster';
   out.innerHTML=`<p class="status ok">✓ Certificado válido, emitido pela Academia Foster de Engenharia.</p>
-  <div class="dados"><div><span>Aluno</span>${esc(c.nome)}</div><div><span>CPF</span>${esc(c.cpf)}</div><div><span>Curso</span>${esc(m.cod)} · ${esc(m.nome)}</div><div><span>Carga horária</span>${c.carga} horas</div><div><span>Nota na avaliação</span>${c.nota} de 10</div><div><span>Emissão</span>${new Date(c.emitido_em).toLocaleDateString('pt-BR')}</div></div>
+  <div class="dados"><div><span>Aluno</span>${esc(c.nome)}</div><div><span>CPF</span>${esc(c.cpf)}</div><div><span>Curso</span>${conc?'Certificado de Conclusão · '+ds.length+' disciplinas':esc(m.cod)+' · '+esc(m.nome)}</div><div><span>Carga horária</span>${c.carga} horas</div><div><span>${conc?'Média nas avaliações':'Nota na avaliação'}</span>${c.nota} de 10</div><div><span>Emissão</span>${new Date(c.emitido_em).toLocaleDateString('pt-BR')}</div></div>
   <div class="acoes"><button id="imprimir">Imprimir ou salvar em PDF</button><button class="btn sec" id="copiar">Copiar link</button><span class="nota" id="msg"></span></div>
   <div class="folha-wrap"><article class="folha" aria-label="Certificado">
     <aside class="f-lado"><div class="f-marca">Academia<br><span>Foster</span><small>de Engenharia</small></div><div class="f-fio"></div>
@@ -112,10 +114,12 @@ async function validar(cod){
       <div class="f-qr"><div id="qr"></div>Aponte a câmera ou acesse<br>fosterfcs.github.io<br>/academia-foster/validar.html</div>
       <div class="f-slogan">Engenharia civil descomplicada</div></aside>
     <section class="f-corpo">
-      <div class="f-olho">Certificado de conclusão · Curso livre</div>
+      <div class="f-olho">Certificado de conclusão · ${conc?'Cursos livres':'Curso livre'}</div>
       <h1 class="f-tit">Certificado</h1>
-      <p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu o curso livre a distância <b>${esc(m.cod)} · ${esc(m.nome)}</b>, com carga horária de <b>${c.carga} horas</b>, e foi aprovado(a) na avaliação final com nota <b>${c.nota},0</b> de 10.</p>
-      <p class="f-prog"><b>Conteúdo programático</b><br>${esc([m.titulo,...tp].filter(Boolean).join(' · '))} · exemplos resolvidos · simulador com memorial de cálculo · erros comuns e checklist de fiscalização · avaliação final com 10 questões.</p>
+      ${conc?`<p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu <b>${ds.length} cursos livres a distância</b> da Academia Foster de Engenharia, com carga horária total de <b>${c.carga} horas</b>, e foi aprovado(a) na avaliação final de cada um, com média <b>${c.nota},0</b> de 10.</p>
+      <div class="f-prog f-lista${ds.length>14?' f-muitas':''}"><b>Disciplinas concluídas · 4 horas cada</b><ol>${ds.map(x=>`<li>${esc(x.m.cod)} · ${esc(x.m.nome)} <i>nota ${x.nota}</i></li>`).join('')}</ol></div>`
+      :`<p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu o curso livre a distância <b>${esc(m.cod)} · ${esc(m.nome)}</b>, com carga horária de <b>${c.carga} horas</b>, e foi aprovado(a) na avaliação final com nota <b>${c.nota},0</b> de 10.</p>
+      <p class="f-prog"><b>Conteúdo programático</b><br>${esc([m.titulo,...tp].filter(Boolean).join(' · '))} · exemplos resolvidos · simulador com memorial de cálculo · erros comuns e checklist de fiscalização · avaliação final com 10 questões.</p>`}
       <div class="f-ass">
         <div><div class="branco"></div><div class="linha">${esc(c.nome)}</div><span>Assinatura do aluno</span></div>
         <div><div class="assin">Wilson Foster</div><div class="linha">Wilson Foster</div><span>José Wilson Pereira · Engenheiro Civil</span><span>CREA-SP 5071894914 · Instrutor responsável</span></div>
