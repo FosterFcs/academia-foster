@@ -105,6 +105,12 @@ try:
     ok(rpc('bia','acad_carteira')[0]['saldo']==0,'créditos não passam para outro aluno')
     s,e=rpc('ana','acad_situacao','rm');ok(s['aprovada'] and s['nota']==6 and s['certificado']['status']=='emitido','situação final')
     lst,e=rpc('wil','acad_admin_pendentes');ok(len(lst)==2,'instrutor vê os emitidos')
+    # contador de alunos: cada conta conta uma vez, instrutor fora
+    c.execute('reset role');esp=c.execute("select count(distinct t.user_id) from acad_tentativas t join auth.users u on u.id=t.user_id where u.email<>'fosterconstrutora@gmail.com'").fetchone()[0]
+    ok(c.execute('select count(*) from acad_alunos where user_id=%s',(U['ana'],)).fetchone()[0]==1,'aluno registrado uma vez só, mesmo com várias provas')
+    rs,e=rpc('wil','acad_admin_resumo');ok(rs and rs['alunos']==esp and rs['novos_hoje']==esp and rs['certificados']==2 and len(rs['dias'])==14,f'resumo do instrutor {rs}')
+    r,e=rpc('ana','acad_admin_resumo');ok(e=='sem_permissao','aluno não vê o resumo')
+    r,e=rpc(None,'acad_admin_resumo');ok(e is not None,'anônimo não vê o resumo')
     # cancelar pedido de pacote
     k3,e=rpc('bia','acad_comprar_pacote','p1');r,e=rpc('wil','acad_admin_compra',k3['codigo'],'cancelar');ok(r['status']=='cancelado' and rpc('bia','acad_carteira')[0]['compra'] is None,'cancelar pedido')
     # tabelas novas fechadas
