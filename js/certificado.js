@@ -5,7 +5,7 @@ const Cert={
   ERROS:{login_necessario:'Entre na sua conta para fazer a prova.',modulo_sem_prova:'A prova desta disciplina ainda não está disponível.',ja_aprovado:'Você já foi aprovado nesta disciplina.',
     limite_tentativas:'Você já usou as 2 tentativas das últimas 24 horas.',tentativa_inexistente:'Não encontrei esta prova. Recarregue a página.',tentativa_encerrada:'Esta prova já foi enviada.',
     prova_nao_aprovada:'É preciso ser aprovado na prova antes de pedir o certificado.',nome_invalido:'Informe o nome completo, com nome e sobrenome.',cpf_invalido:'CPF inválido. Confira os números.',
-    sem_permissao:'Sem permissão.',certificado_nao_pendente:'Este pedido já foi resolvido.',pacote_invalido:'Pacote inválido.',compra_nao_pendente:'Este pedido de pacote já foi resolvido.',poucas_disciplinas:'Você ainda não tem disciplinas aprovadas suficientes.'},
+    sem_permissao:'Sem permissão.',certificado_nao_pendente:'Este pedido já foi resolvido.',pacote_invalido:'Pacote inválido.',compra_nao_pendente:'Este pedido de pacote já foi resolvido.',poucas_disciplinas:'Você ainda não tem disciplinas aprovadas suficientes.',nota_invalida:'A nota vai de 0 a 10.',sem_disciplina:'Marque pelo menos uma disciplina.',email_nao_encontrado:'Não existe conta com esse e-mail. Deixe em branco para emitir sem vincular.',ja_existe:'Esse aluno já tem certificado ativo nessa disciplina. Use a busca para corrigir o existente.',certificado_inexistente:'Certificado não encontrado.',carga_invalida:'Carga horária inválida.'},
   erro(e){return this.ERROS[e&&e.raw]||(e&&e.message)||'Não foi possível concluir agora.'},
   rpc(fn,body={},auth=true){return Conta.req('/rest/v1/rpc/'+fn,{method:'POST',body,auth})},
   url(cod){return location.origin+location.pathname.replace(/index\.html$/,'')+'validar.html?c='+encodeURIComponent(cod)},
@@ -131,10 +131,10 @@ const Cert={
       let h=`<h3>Meus certificados</h3>`+(meus.length?`<div class="tbl-wrap"><table class="ed"><thead><tr><th>Disciplina</th><th>Código</th><th>Situação</th><th></th></tr></thead><tbody>${meus.map(c=>{const m=modById(c.modulo);return `<tr><td>${c.modulo==='conclusao'?'Certificado de Conclusão · '+c.n+' disciplinas ('+c.carga+' h)':m?m.cod+' · '+m.nome:c.modulo}</td><td class="mono">${c.codigo}</td><td>${c.status==='emitido'?'Emitido em '+this.data(c.emitido_em):c.modulo==='conclusao'?'Aguardando o Pix':'Aguardando crédito'}</td><td>${c.status==='emitido'?`<a href="${this.url(c.codigo)}" target="_blank" rel="noopener">Abrir</a>`:c.modulo==='conclusao'?'':`<button class="chip" data-ir="${c.modulo}">Ver pagamento</button>`}</td></tr>`}).join('')}</tbody></table></div>`:`<p class="nota">Nenhum certificado ainda. Em cada disciplina, a aba Certificado mostra como conseguir o seu.</p>`);
       await this.carteira();if(!document.body.contains(box))return;
       h+=`<h3>Certificado de Conclusão</h3><div id="ccBox"><p class="carregando">Consultando suas disciplinas aprovadas…</p></div><h3>Créditos de certificado</h3><div id="ceCart">${this.htmlCarteira(this.cart)}</div>`;
-      if(adm)h+=`<h3>Painel do instrutor</h3><div id="ceAdm"><p class="carregando">Carregando pedidos…</p></div>`;
+      if(adm)h+=`<h3>Painel do instrutor</h3><div id="ceAdm"><p class="carregando">Carregando pedidos…</p></div><h3>Certificados: emitir avulso e corrigir</h3><div id="ceAdmCert"></div>`;
       box.innerHTML=h;this.ligarCarteira(box,()=>{box.remove();this.painelConta(sec)});box.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.ir;st.tab='cert';render()});
       this.conclusao($('ccBox'),()=>{box.remove();this.painelConta(sec)});
-      if(adm)this.admin($('ceAdm'))}catch(e){if(document.body.contains(box))box.innerHTML=`<h3>Meus certificados</h3><p class="nota">${esc(this.erro(e))}</p>`}},
+      if(adm){this.admin($('ceAdm'));this.adminCert($('ceAdmCert'))}}catch(e){if(document.body.contains(box))box.innerHTML=`<h3>Meus certificados</h3><p class="nota">${esc(this.erro(e))}</p>`}},
   htmlResumo(r){if(!r)return'';const dd=d=>d.dia.slice(8,10)+'/'+d.dia.slice(5,7);
     return `<h4>Alunos e certificados</h4><p class="nota">Visitantes: cada aparelho que abriu o app conta uma vez, mesmo sem conta. Alunos: cada conta conta uma vez, no primeiro uso; contas de instrutor ficam de fora. Abrir de novo ou entrar de novo não soma.</p>`+
       (r.visitantes!=null?tiles([['Visitantes (aparelhos)',r.visitantes,1],['Visitantes hoje',r.vis_hoje],['Em 7 dias',r.vis_7],['Em 30 dias',r.vis_30]]):'')+tiles([['Alunos cadastrados',r.alunos,1],['Novos hoje',r.novos_hoje],['Novos em 7 dias',r.novos_7],['Novos em 30 dias',r.novos_30]])+
@@ -182,6 +182,57 @@ const Cert={
     <label class="chk"><input type="checkbox" id="ccAceite"> Autorizo o uso do meu nome e CPF neste certificado. O CPF aparece parcialmente oculto na página de validação.</label>
     <p class="pill alerta" id="ccErro" hidden role="alert"></p>
     <div class="presets"><button class="btn" type="submit" id="ccPedir">${nome?'Atualizar o pedido':'Gerar o Pix do certificado (R$ '+br(c.valor)+')'}</button></div></form>`},
+  // ---------- Instrutor: emitir certificados avulsos e corrigir os existentes
+  adminCert(el){if(!el)return;
+    const nomeCert=c=>c.modulo==='conclusao'?`Certificado de Conclusão · ${(c.modulos||[]).length} disciplinas`:(m=>m?m.cod+' · '+m.nome:c.modulo)(modById(c.modulo));
+    const grupos=AREAS.map(([a,ids])=>`<fieldset class="mini"><legend>${esc(a)}</legend>${ids.map(id=>{const m=modById(id);return `<label class="chk"><input type="checkbox" name="caM" value="${id}"> ${esc(m.cod)} · ${esc(m.nome)}</label>`}).join('')}</fieldset>`).join('');
+    el.innerHTML=`<div class="presets"><button class="btn" id="caAbaE">Emitir certificado avulso</button><button class="btn sec" id="caAbaB">Buscar e corrigir</button></div><div id="caCorpo"></div>`;
+    const corpo=$('caCorpo'),abaE=()=>{
+      corpo.innerHTML=`<p class="nota">Para quem fez o curso fora do app ou pagou por fora. Uma disciplina gera o certificado dela (4 h); duas ou mais geram um Certificado de Conclusão com a carga somada. O certificado sai na hora, com código de validação.</p>
+      <form id="caForm" class="lista form-conta" novalidate>
+        <div class="campo"><label for="caNome">Nome completo</label><input type="text" id="caNome" maxlength="120"></div>
+        <div class="campo"><label for="caCpf">CPF</label><input type="text" id="caCpf" inputmode="numeric" maxlength="14" placeholder="000.000.000-00"></div>
+        <div class="campo"><label for="caNota">Nota (0 a 10)</label><input id="caNota" type="number" min="0" max="10" step="1" value="10"></div>
+        <div class="campo"><label for="caEmail">E-mail da conta do aluno (opcional)</label><input id="caEmail" type="email" placeholder="deixe em branco se ele não tem conta"></div>
+        <div class="campo"><label for="caValor">Valor recebido em R$ (opcional)</label><input id="caValor" type="number" min="0" step="0.01" value="0"></div>
+        <div class="campo"><label for="caObs">Observação interna (opcional)</label><input type="text" id="caObs" maxlength="200" placeholder="ex.: turma presencial, cortesia, Pix por fora"></div>
+        <p><b>Disciplinas</b> <span class="nota" id="caConta">nenhuma marcada</span></p>${grupos}
+        <p class="pill alerta" id="caErro" hidden role="alert"></p>
+        <div class="presets"><button class="btn" type="submit" id="caEmitir">Emitir certificado</button></div></form><div id="caOk"></div>`;
+      const cpf=$('caCpf');cpf.oninput=()=>{cpf.value=this.cpfMascara(cpf.value)};
+      const conta=()=>{const n=corpo.querySelectorAll('[name=caM]:checked').length;$('caConta').textContent=n?`${n} marcada${n>1?'s':''} · ${n*this.CARGA} horas${n>1?' · Certificado de Conclusão':''}`:'nenhuma marcada'};
+      corpo.querySelectorAll('[name=caM]').forEach(c=>c.onchange=conta);
+      $('caForm').onsubmit=async ev=>{ev.preventDefault();const er=$('caErro'),falha=t=>{er.textContent=t;er.hidden=false},nome=$('caNome').value.trim().replace(/\s+/g,' '),
+          ms=[...corpo.querySelectorAll('[name=caM]:checked')].map(c=>c.value),nota=parseInt($('caNota').value,10);er.hidden=true;
+        if(nome.length<5||!nome.includes(' '))return falha(this.ERROS.nome_invalido);if(!this.cpfValido(cpf.value))return falha(this.ERROS.cpf_invalido);
+        if(!(nota>=0&&nota<=10))return falha(this.ERROS.nota_invalida);if(!ms.length)return falha(this.ERROS.sem_disciplina);
+        const b=$('caEmitir');b.disabled=true;b.textContent='Emitindo…';
+        try{const c=await this.rpc('acad_admin_emitir',{p_nome:nome,p_cpf:cpf.value,p_modulos:ms,p_nota:nota,p_email:$('caEmail').value.trim()||null,p_valor:Number($('caValor').value)||0,p_obs:$('caObs').value.trim()||null});
+          $('caForm').reset();conta();$('caOk').innerHTML=`<p class="pill ok" role="status">Emitido: ${esc(nomeCert(c))} para <b>${esc(c.nome)}</b>, código <b class="mono">${c.codigo}</b>. <a href="${this.url(c.codigo)}" target="_blank" rel="noopener">Abrir e imprimir</a></p>`}
+        catch(e){falha(this.erro(e))}b.disabled=false;b.textContent='Emitir certificado'}},
+    abaB=()=>{corpo.innerHTML=`<form id="caBusca" class="presets"><input type="text" id="caTermo" placeholder="código, nome, CPF ou e-mail" style="flex:1;min-width:220px"><button class="btn" type="submit">Buscar</button></form><div id="caRes"><p class="carregando">Carregando os mais recentes…</p></div>`;
+      const buscar=async()=>{const r=$('caRes');try{const l=await this.rpc('acad_admin_buscar',{p_termo:$('caTermo').value});
+          r.innerHTML=l.length?`<div class="tbl-wrap"><table class="ed"><thead><tr><th>Código</th><th>Aluno</th><th>Certificado</th><th>Situação</th><th></th></tr></thead><tbody>${l.map((c,i)=>`<tr><td class="mono">${c.codigo}</td><td>${esc(c.nome)}<br><small>${esc(c.email||'sem conta')}</small></td><td>${esc(nomeCert(c))}<br><small>${c.carga} h · nota ${c.nota}${c.avulso?' · avulso':''}</small></td><td>${c.status==='emitido'?'Emitido '+this.data(c.emitido_em):c.status==='pendente'?'Aguardando pagamento':'Cancelado'}</td><td><button class="chip" data-ed="${i}">Corrigir</button></td></tr><tr hidden id="caEd${i}"><td colspan="5"></td></tr>`).join('')}</tbody></table></div>`:'<p class="nota">Nada encontrado.</p>';
+          r.querySelectorAll('[data-ed]').forEach(bt=>bt.onclick=()=>{const i=+bt.dataset.ed,c=l[i],tr=$('caEd'+i);if(!tr.hidden){tr.hidden=true;return}tr.hidden=false;
+            tr.firstElementChild.innerHTML=`<form class="lista form-conta" id="caF${i}" novalidate>
+              <div class="campo"><label>Nome completo</label><input type="text" name="nome" maxlength="120" value="${esc(c.nome)}"></div>
+              <div class="campo"><label>CPF</label><input type="text" name="cpf" inputmode="numeric" maxlength="14" value="${this.cpfMascara(c.cpf)}"></div>
+              <div class="campo"><label>Nota (0 a 10)</label><input name="nota" type="number" min="0" max="10" value="${c.nota}"></div>
+              <div class="campo"><label>Carga horária (h)</label><input name="carga" type="number" min="1" max="500" value="${c.carga}"></div>
+              <div class="campo"><label>Situação</label><select name="status">${c.status==='pendente'?'<option value="">Aguardando pagamento (manter)</option>':''}<option value="emitido"${c.status==='emitido'?' selected':''}>Emitido (válido)</option><option value="cancelado"${c.status==='cancelado'?' selected':''}>Cancelado (deixa de validar)</option></select></div>
+              <div class="campo"><label>Observação interna</label><input type="text" name="obs" maxlength="200" value="${esc(c.obs||'')}"></div>
+              <p class="pill alerta" hidden role="alert"></p>
+              <div class="presets"><button class="btn" type="submit">Salvar correção</button>${c.status==='emitido'?`<a class="btn sec" href="${this.url(c.codigo)}" target="_blank" rel="noopener">Abrir</a>`:''}<button class="chip" type="button" data-h>Ver histórico</button></div><div data-hist></div></form>`;
+            const f=$('caF'+i),er=f.querySelector('.alerta');f.cpf.oninput=()=>{f.cpf.value=this.cpfMascara(f.cpf.value)};
+            f.querySelector('[data-h]').onclick=async()=>{const hb=f.querySelector('[data-hist]');try{const h=await this.rpc('acad_admin_historico',{p_codigo:c.codigo});
+              hb.innerHTML=h.length?`<ul class="nota">${h.map(x=>`<li>${this.hora(x.em)} · ${esc(x.admin||'')} · ${x.acao==='emitir_avulso'?'emitiu avulso':'corrigiu'}${x.antes?': '+['nome','cpf','nota','carga','status'].filter(k=>JSON.stringify(x.antes[k])!==JSON.stringify(x.depois[k])).map(k=>`${k} ${esc(String(x.antes[k]))} → ${esc(String(x.depois[k]))}`).join(', '):''}</li>`).join('')}</ul>`:'<p class="nota">Sem alterações registradas.</p>'}catch(e){hb.textContent=this.erro(e)}};
+            f.onsubmit=async ev=>{ev.preventDefault();er.hidden=true;const nome=f.nome.value.trim().replace(/\s+/g,' ');
+              if(nome.length<5||!nome.includes(' ')){er.textContent=this.ERROS.nome_invalido;er.hidden=false;return}if(!this.cpfValido(f.cpf.value)){er.textContent=this.ERROS.cpf_invalido;er.hidden=false;return}
+              try{await this.rpc('acad_admin_editar',{p_codigo:c.codigo,p_nome:nome,p_cpf:f.cpf.value,p_nota:parseInt(f.nota.value,10),p_carga:parseInt(f.carga.value,10),p_status:f.status.value||null,p_obs:f.obs.value});aviso('Certificado '+c.codigo+' corrigido.');buscar()}
+              catch(e){er.textContent=this.erro(e);er.hidden=false}}})}
+        catch(e){r.innerHTML=`<p class="pill alerta">${esc(this.erro(e))}</p>`}};
+      $('caBusca').onsubmit=ev=>{ev.preventDefault();buscar()};buscar()};
+    $('caAbaE').onclick=()=>{$('caAbaE').className='btn';$('caAbaB').className='btn sec';abaE()};$('caAbaB').onclick=()=>{$('caAbaB').className='btn';$('caAbaE').className='btn sec';abaB()};abaE()},
   async admin(el){
     const desenhar=async(msg)=>{let lst,certs,rs=null;try{[lst,certs,rs]=await Promise.all([this.rpc('acad_admin_compras'),this.rpc('acad_admin_pendentes'),this.rpc('acad_admin_resumo').catch(()=>null)])}catch(e){el.innerHTML=`<p class="pill alerta">${esc(this.erro(e))}</p>`;return}
       const pend=lst.filter(c=>c.status==='pendente'),pagas=lst.filter(c=>c.status==='pago'),tot=pagas.reduce((s,c)=>s+Number(c.valor),0),emit=certs.filter(c=>c.status==='emitido').slice(0,20);
