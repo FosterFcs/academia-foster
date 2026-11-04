@@ -1073,7 +1073,7 @@ quiz:[{p:"O que é o centroide de uma seção?",o:["O ponto de equilíbrio da á
 const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns',mc:'scWew_sg_cU',tp:'olD9dmAPC7E',or:'zVRDJ39NCq0',lj:'qHUNz6HJ19o',ma:'wHF61AL737E'};
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.8.5';
+const VERSAO_APP='1.8.6';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -1431,9 +1431,13 @@ const Conta={
       this.ocupado=false;this.topo();this.render();
     };
   },
+  // Contador de visitantes (só o instrutor vê o número): cada aparelho é registrado uma vez.
+  visita(){try{if(this.ler('af-visita-ok',false))return;let id=this.ler('af-visitante',null);
+    if(!id){id=crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^Math.random()*16>>c/4).toString(16));this.gravar('af-visitante',id)}
+    this.req('/rest/v1/rpc/acad_visita',{method:'POST',body:{p_id:id},auth:false}).then(()=>this.gravar('af-visita-ok',true)).catch(()=>{})}catch(e){}},
   async iniciar(){
     if(!this.ativo){this.topo();return}
-    this.carregar();const b=$('btConta');if(b)b.onclick=()=>{st.mod='conta';this.msg='';this.confirmaSair=this.confirmaApagar=false;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})};
+    this.visita();this.carregar();const b=$('btConta');if(b)b.onclick=()=>{st.mod='conta';this.msg='';this.confirmaSair=this.confirmaApagar=false;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})};
     this.topo();
     if(location.hash.includes('access_token')||location.hash.includes('error'))await this.lerLink();
     if(this.logado){this.estado='pendente';this.topo();this.baixar().catch(()=>{})}
@@ -1580,10 +1584,10 @@ const Cert={
       box.innerHTML=h;this.ligarCarteira(box,()=>{box.remove();this.painelConta(sec)});box.querySelectorAll('[data-ir]').forEach(b=>b.onclick=()=>{st.mod=b.dataset.ir;st.tab='cert';render()});
       if(adm)this.admin($('ceAdm'))}catch(e){if(document.body.contains(box))box.innerHTML=`<h3>Meus certificados</h3><p class="nota">${esc(this.erro(e))}</p>`}},
   htmlResumo(r){if(!r)return'';const dd=d=>d.dia.slice(8,10)+'/'+d.dia.slice(5,7);
-    return `<h4>Alunos e certificados</h4><p class="nota">Cada conta conta uma vez só, no primeiro uso da Academia: entrar de novo não vira aluno novo. Contas de instrutor ficam de fora.</p>`+
-      tiles([['Alunos cadastrados',r.alunos,1],['Novos hoje',r.novos_hoje],['Novos em 7 dias',r.novos_7],['Novos em 30 dias',r.novos_30]])+
+    return `<h4>Alunos e certificados</h4><p class="nota">Visitantes: cada aparelho que abriu o app conta uma vez, mesmo sem conta. Alunos: cada conta conta uma vez, no primeiro uso; contas de instrutor ficam de fora. Abrir de novo ou entrar de novo não soma.</p>`+
+      (r.visitantes!=null?tiles([['Visitantes (aparelhos)',r.visitantes,1],['Visitantes hoje',r.vis_hoje],['Em 7 dias',r.vis_7],['Em 30 dias',r.vis_30]]):'')+tiles([['Alunos cadastrados',r.alunos,1],['Novos hoje',r.novos_hoje],['Novos em 7 dias',r.novos_7],['Novos em 30 dias',r.novos_30]])+
       tiles([['Certificados emitidos',r.certificados,1],['Emitidos hoje',r.cert_hoje],['Emitidos em 7 dias',r.cert_7],['Provas aprovadas',r.aprovadas+' de '+r.provas]])+
-      `<div class="tbl-wrap"><table class="ed"><thead><tr><th>Dia</th><th>Alunos novos</th><th>Certificados</th></tr></thead><tbody>${r.dias.slice().reverse().map(d=>`<tr><td class="mono">${dd(d)}</td><td>${d.novos?'<b>'+d.novos+'</b>':'·'}</td><td>${d.certs?'<b>'+d.certs+'</b>':'·'}</td></tr>`).join('')}</tbody></table></div><h4>Pagamentos</h4>`},
+      `<div class="tbl-wrap"><table class="ed"><thead><tr><th>Dia</th><th>Visitantes</th><th>Alunos novos</th><th>Certificados</th></tr></thead><tbody>${r.dias.slice().reverse().map(d=>`<tr><td class="mono">${dd(d)}</td><td>${d.vis?'<b>'+d.vis+'</b>':'·'}</td><td>${d.novos?'<b>'+d.novos+'</b>':'·'}</td><td>${d.certs?'<b>'+d.certs+'</b>':'·'}</td></tr>`).join('')}</tbody></table></div><h4>Pagamentos</h4>`},
   async admin(el){
     const desenhar=async(msg)=>{let lst,certs,rs=null;try{[lst,certs,rs]=await Promise.all([this.rpc('acad_admin_compras'),this.rpc('acad_admin_pendentes'),this.rpc('acad_admin_resumo').catch(()=>null)])}catch(e){el.innerHTML=`<p class="pill alerta">${esc(this.erro(e))}</p>`;return}
       const pend=lst.filter(c=>c.status==='pendente'),pagas=lst.filter(c=>c.status==='pago'),tot=pagas.reduce((s,c)=>s+Number(c.valor),0),emit=certs.filter(c=>c.status==='emitido').slice(0,20);

@@ -110,6 +110,11 @@ try:
     ok(c.execute('select count(*) from acad_alunos where user_id=%s',(U['ana'],)).fetchone()[0]==1,'aluno registrado uma vez só, mesmo com várias provas')
     rs,e=rpc('wil','acad_admin_resumo');ok(rs and rs['alunos']==esp and rs['novos_hoje']==esp and rs['certificados']==2 and len(rs['dias'])==14,f'resumo do instrutor {rs}')
     r,e=rpc('ana','acad_admin_resumo');ok(e=='sem_permissao','aluno não vê o resumo')
+    vid=str(uuid.uuid4());rpc(None,'acad_visita',vid);rpc(None,'acad_visita',vid);rpc(None,'acad_visita',str(uuid.uuid4()))
+    rs,e=rpc('wil','acad_admin_resumo');ok(rs['visitantes']==2 and rs['vis_hoje']==2 and rs['dias'][-1]['vis']==2,'visitante conta uma vez por aparelho')
+    como(None)
+    try:c.execute('select count(*) from acad_visitantes');ok(False,'anônimo não lê visitantes')
+    except psycopg.Error:ok(True,'anônimo não lê visitantes')
     r,e=rpc(None,'acad_admin_resumo');ok(e is not None,'anônimo não vê o resumo')
     # cancelar pedido de pacote
     k3,e=rpc('bia','acad_comprar_pacote','p1');r,e=rpc('wil','acad_admin_compra',k3['codigo'],'cancelar');ok(r['status']=='cancelado' and rpc('bia','acad_carteira')[0]['compra'] is None,'cancelar pedido')

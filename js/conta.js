@@ -178,9 +178,13 @@ const Conta={
       this.ocupado=false;this.topo();this.render();
     };
   },
+  // Contador de visitantes (só o instrutor vê o número): cada aparelho é registrado uma vez.
+  visita(){try{if(this.ler('af-visita-ok',false))return;let id=this.ler('af-visitante',null);
+    if(!id){id=crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^Math.random()*16>>c/4).toString(16));this.gravar('af-visitante',id)}
+    this.req('/rest/v1/rpc/acad_visita',{method:'POST',body:{p_id:id},auth:false}).then(()=>this.gravar('af-visita-ok',true)).catch(()=>{})}catch(e){}},
   async iniciar(){
     if(!this.ativo){this.topo();return}
-    this.carregar();const b=$('btConta');if(b)b.onclick=()=>{st.mod='conta';this.msg='';this.confirmaSair=this.confirmaApagar=false;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})};
+    this.visita();this.carregar();const b=$('btConta');if(b)b.onclick=()=>{st.mod='conta';this.msg='';this.confirmaSair=this.confirmaApagar=false;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})};
     this.topo();
     if(location.hash.includes('access_token')||location.hash.includes('error'))await this.lerLink();
     if(this.logado){this.estado='pendente';this.topo();this.baixar().catch(()=>{})}
