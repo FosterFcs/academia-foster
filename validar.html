@@ -89,6 +89,7 @@ button,.btn{font:600 .95rem var(--f-body);padding:10px 16px;border:1.5px solid v
 const CFG={url:'https://fvsdlpnvqfvjdxmfgbjx.supabase.co',chave:'sb_publishable_VT3XEbInyTr2Eu-AuLnrqw_BOrA2jYy'};
 const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 const MESES=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const dCurta=d=>{const [a,m,x]=d.split('-');return `${x}/${m}/${a}`},periodoTxt=p=>!p?'':p.ini===p.fim?`em ${dataExtenso(p.ini+'T12:00:00')}`:`de ${dataExtenso(p.ini+'T12:00:00')} a ${dataExtenso(p.fim+'T12:00:00')}`;
 const dataExtenso=iso=>{const d=new Date(iso);return `${d.getDate()} de ${MESES[d.getMonth()]} de ${d.getFullYear()}`};
 function script(src){return new Promise((ok,er)=>{const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=er;document.head.appendChild(s)})}
 async function topicos(id){// títulos da teoria da disciplina, para o conteúdo programático
@@ -106,7 +107,7 @@ async function validar(cod){
     m=conc?{cod:'',nome:'Certificado de Conclusão',titulo:''}:CATALOGO.find(x=>x.id===c.modulo)||{cod:'',nome:c.modulo,titulo:''},tp=conc?[]:await topicos(c.modulo),url=location.origin+location.pathname+'?c='+cod;
   history.replaceState(null,'','?c='+cod);document.title='Certificado '+cod+' · Academia Foster';
   out.innerHTML=`<p class="status ok">✓ Certificado válido, emitido pela Academia Foster de Engenharia.</p>
-  <div class="dados"><div><span>Aluno</span>${esc(c.nome)}</div><div><span>CPF</span>${esc(c.cpf)}</div><div><span>Curso</span>${conc?'Certificado de Conclusão · '+ds.length+' disciplinas':esc(m.cod)+' · '+esc(m.nome)}</div><div><span>Carga horária</span>${c.carga} horas</div><div><span>${conc?'Média nas avaliações':'Nota na avaliação'}</span>${c.nota} de 10</div><div><span>Emissão</span>${new Date(c.emitido_em).toLocaleDateString('pt-BR')}</div></div>
+  <div class="dados"><div><span>Aluno</span>${esc(c.nome)}</div><div><span>CPF</span>${esc(c.cpf)}</div><div><span>Curso</span>${conc?'Certificado de Conclusão · '+ds.length+' disciplinas':esc(m.cod)+' · '+esc(m.nome)}</div><div><span>Carga horária</span>${c.carga} horas</div><div><span>${conc?'Média nas avaliações':'Nota na avaliação'}</span>${c.nota} de 10</div><div><span>Período de realização</span>${c.periodo?(c.periodo.ini===c.periodo.fim?dCurta(c.periodo.ini):dCurta(c.periodo.ini)+' a '+dCurta(c.periodo.fim)):'—'}</div><div><span>Emissão</span>${new Date(c.emitido_em).toLocaleDateString('pt-BR')}</div></div>
   <div class="acoes"><button id="imprimir">Imprimir ou salvar em PDF</button><button class="btn sec" id="copiar">Copiar link</button><span class="nota" id="msg"></span></div>
   <div class="folha-wrap"><article class="folha" aria-label="Certificado">
     <aside class="f-lado"><div class="f-marca">Academia<br><span>Foster</span><small>de Engenharia</small></div><div class="f-fio"></div>
@@ -116,9 +117,9 @@ async function validar(cod){
     <section class="f-corpo">
       <div class="f-olho">Certificado de conclusão · ${conc?'Cursos livres':'Curso livre'}</div>
       <h1 class="f-tit">Certificado</h1>
-      ${conc?`<p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu <b>${ds.length} cursos livres a distância</b> da Academia Foster de Engenharia, com carga horária total de <b>${c.carga} horas</b>, e foi aprovado(a) na avaliação final de cada um, com média <b>${c.nota},0</b> de 10.</p>
+      ${conc?`<p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu <b>${ds.length} cursos livres a distância</b> da Academia Foster de Engenharia, com carga horária total de <b>${c.carga} horas</b>, realizados ${periodoTxt(c.periodo)}, e foi aprovado(a) na avaliação final de cada um, com média <b>${c.nota},0</b> de 10.</p>
       <div class="f-prog f-lista${ds.length>14?' f-muitas':''}"><b>Disciplinas concluídas · 4 horas cada</b><ol>${ds.map(x=>`<li>${esc(x.m.cod)} · ${esc(x.m.nome)} <i>nota ${x.nota}</i></li>`).join('')}</ol></div>`
-      :`<p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu o curso livre a distância <b>${esc(m.cod)} · ${esc(m.nome)}</b>, com carga horária de <b>${c.carga} horas</b>, e foi aprovado(a) na avaliação final com nota <b>${c.nota},0</b> de 10.</p>
+      :`<p class="f-texto">Certificamos que<span class="f-nome">${esc(c.nome)}</span>CPF ${esc(c.cpf)}, concluiu o curso livre a distância <b>${esc(m.cod)} · ${esc(m.nome)}</b>, com carga horária de <b>${c.carga} horas</b>, realizado ${periodoTxt(c.periodo)}, e foi aprovado(a) na avaliação final com nota <b>${c.nota},0</b> de 10.</p>
       <p class="f-prog"><b>Conteúdo programático</b><br>${esc([m.titulo,...tp].filter(Boolean).join(' · '))} · exemplos resolvidos · simulador com memorial de cálculo · erros comuns e checklist de fiscalização · avaliação final com 10 questões.</p>`}
       <div class="f-ass">
         <div><div class="branco"></div><div class="linha">${esc(c.nome)}</div><span>Assinatura do aluno</span></div>

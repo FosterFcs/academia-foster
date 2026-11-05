@@ -182,6 +182,9 @@ const Conta={
   visita(){try{if(this.ler('af-visita-ok',false))return;let id=this.ler('af-visitante',null);
     if(!id){id=crypto.randomUUID?crypto.randomUUID():'10000000-1000-4000-8000-100000000000'.replace(/[018]/g,c=>(c^Math.random()*16>>c/4).toString(16));this.gravar('af-visitante',id)}
     this.req('/rest/v1/rpc/acad_visita',{method:'POST',body:{p_id:id},auth:false}).then(()=>this.gravar('af-visita-ok',true)).catch(()=>{})}catch(e){}},
+  // Registra (uma vez por disciplina) o dia em que o aluno começou a estudar: é a data de início do período no certificado.
+  estudo(id){try{if(!this.ativo||!this.logado)return;const k='af-estudo-'+this.s.user.id,f=this.ler(k,{});if(f[id])return;f[id]=1;this.gravar(k,f);
+    this.req('/rest/v1/rpc/acad_registrar_estudo',{method:'POST',body:{p_modulo:id}}).catch(()=>{const g=this.ler(k,{});delete g[id];this.gravar(k,g)})}catch(e){}},
   async iniciar(){
     if(!this.ativo){this.topo();return}
     this.visita();this.carregar();const b=$('btConta');if(b)b.onclick=()=>{st.mod='conta';this.msg='';this.confirmaSair=this.confirmaApagar=false;render();$('main').scrollIntoView({block:'start',behavior:'smooth'})};

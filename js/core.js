@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.8.9';
+const VERSAO_APP='1.9.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -81,6 +81,7 @@ function render(){
   if(st.mod==='sim')return renderSimulado();
   const m=modById(st.mod);
   if(!m){st.mod='inicio';return render()}
+  if(typeof Conta!=='undefined'&&Conta.estudo)Conta.estudo(m.id);
   if(!m.carregado)return renderCarregando(m);
   const tabs=[['teoria','Teoria'],['video','Vídeo-aula'],['exemplo',m.exemplos&&m.exemplos.length?'Exemplos':'Exemplo'],['sim','Simulador']];if(m.sig)tabs.push(['sig','Bancada SIG']);if(m.obra)tabs.push(['obra','Na obra']);tabs.push(['quiz','Quiz']);if(typeof Cert!=='undefined')tabs.push(['cert','Certificado']);if(!tabs.some(t=>t[0]===st.tab))st.tab='teoria';
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">${m.eyebrow}</span><h2>${m.titulo}</h2></div>
