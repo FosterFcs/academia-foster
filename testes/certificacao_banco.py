@@ -158,6 +158,15 @@ try:
     h,e=rpc('wil','acad_admin_historico',r2['codigo']);ok(h and len(h)==4 and h[0]['admin']=='fosterconstrutora@gmail.com','histórico registrado')
     r,e=rpc('ana','acad_admin_editar',r2['codigo'],'Outro Nome Qualquer',None,None,None,None,None);ok(e=='sem_permissao','aluno não edita')
     r,e=rpc('ana','acad_admin_buscar','');ok(e=='sem_permissao','aluno não busca')
+    # ---- reembolso (arrependimento): conclusão e pacote
+    r,e=rpc('wil','acad_admin_reembolsar',k2['compra']);ok(r and r['cancelados']==1 and rpc(None,'acad_validar',k['codigo'])[0] is None,f'reembolso da conclusão cancela o certificado {r} {e}')
+    r,e=rpc('wil','acad_admin_reembolsar',k2['compra']);ok(e=='compra_nao_paga','não reembolsa duas vezes')
+    r,e=rpc('ana','acad_admin_reembolsar','PK-X');ok(e=='sem_permissao','aluno não reembolsa')
+    c.execute('reset role');pk=c.execute("select codigo from acad_compras where user_id=%s and status='pago' and certificado is null order by pago_em limit 1",(U['ana'],)).fetchone()[0]
+    s1=rpc('ana','acad_carteira')[0]['saldo'];emit=len([x for x in rpc('ana','acad_meus_certificados')[0] if x['status']=='emitido'])
+    r,e=rpc('wil','acad_admin_reembolsar',pk);ok(r and r['saldo']>=0,f'reembolso do pacote não deixa saldo negativo {r} {e}')
+    emit2=len([x for x in rpc('ana','acad_meus_certificados')[0] if x['status']=='emitido']);ok(emit-emit2==r['cancelados'],f'certificados cancelados conferem {emit}->{emit2} {r}')
+    h,e=rpc('wil','acad_admin_historico',k['codigo']);ok(any(x['acao'].startswith('reembolso') for x in h),'reembolso aparece no histórico')
     # cancelar pedido de pacote
     k3,e=rpc('bia','acad_comprar_pacote','p1');r,e=rpc('wil','acad_admin_compra',k3['codigo'],'cancelar');ok(r['status']=='cancelado' and rpc('bia','acad_carteira')[0]['compra'] is None,'cancelar pedido')
     # tabelas novas fechadas
