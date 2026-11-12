@@ -65,7 +65,16 @@ e abra http://localhost:8000
 
 ## Vídeo-aulas
 
-Cada disciplina tem a aba **Vídeo-aula**, que toca o vídeo do canal Academia Foster no YouTube (precisa de internet). Os códigos dos vídeos ficam em `VIDEOS`, no fim de `js/catalogo.js`: para incluir uma aula nova, acrescente `id:'CODIGO'`, onde CODIGO é o trecho depois de `youtu.be/`. Disciplina sem código mostra "Vídeo-aula em breve".
+Cada disciplina tem a aba **Vídeo-aula**, que toca o vídeo do canal Academia Foster no YouTube (precisa de internet). Os códigos ficam em `VIDEOS`, no fim de `js/catalogo.js`:
+
+- Uma aula: `rm:'CODIGO'`, onde CODIGO é o trecho depois de `youtu.be/`.
+- Várias aulas na mesma disciplina: `rm:[{id:'COD1',titulo:'Aula 1 · Reações'},{id:'COD2',titulo:'Aula 2 · Momento'}]`. Aparecem botões para trocar de aula.
+- Aula de professor parceiro: acrescente `prof:'Nome'` na aula. O nome aparece embaixo do vídeo.
+- Disciplina sem vídeo mostra "Vídeo-aula em breve", com o botão **Quero ser avisado** (abre o WhatsApp) e o botão de inscrição no canal.
+
+Vídeos de **outros canais** entram em `COMPLEMENTARES` (logo abaixo de `VIDEOS`), sempre com o nome do canal: `rm:[{id:'CODIGO',titulo:'...',canal:'Nome do Canal'}]`. Eles aparecem como links em "Para ir além", com o aviso de que não fazem parte da prova nem do certificado. Use só vídeos públicos e nunca copie aulas de cursos pagos.
+
+A página `professor.html` convida engenheiros e técnicos a gravar aulas como **professores parceiros** (link no rodapé e na aba Vídeo-aula).
 
 ## Testes
 

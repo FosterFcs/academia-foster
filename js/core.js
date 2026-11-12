@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.9.1';
+const VERSAO_APP='1.10.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -112,10 +112,25 @@ function qBlock(q,i,resp,onPick,orig){
   return d;
 }
 const NIVEL={facil:['Fácil','pos'],medio:['Médio','steel'],obra:['Caso de obra','amber-ink']};
-function renderVideo(m,p){const v=typeof VIDEOS!=='undefined'&&VIDEOS[m.id];
-  if(!v){p.innerHTML=`<div class="video-breve"><b>Vídeo-aula em breve</b><p>A aula em vídeo desta disciplina está sendo preparada. Enquanto isso, estude pela aba Teoria e pelos exemplos resolvidos.</p></div>`;return}
-  p.innerHTML=`<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${v}?rel=0&modestbranding=1" title="Vídeo-aula: ${m.nome}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
-  <p class="video-nota">Precisa de internet para assistir. <a href="https://youtu.be/${v}" target="_blank" rel="noopener">Abrir no YouTube</a></p>`}
+// Vídeo-aulas: VIDEOS[id] pode ser um código ('abc') ou uma lista ([{id:'abc',titulo:'Aula 1'}, ...]).
+// COMPLEMENTARES[id]: vídeos de outros canais, com crédito. Não fazem parte da prova nem do certificado.
+const CANAL_YT='https://www.youtube.com/@AcademiaFoster',ZAP_AF='5524992096103';
+const ytId=s=>/^[\w-]{6,20}$/.test(s||'')?s:'';
+function aulasDe(id){const v=typeof VIDEOS!=='undefined'&&VIDEOS[id];if(!v)return[];
+  return(Array.isArray(v)?v:[v]).map((a,i)=>typeof a==='string'?{id:a}:a).map((a,i)=>({id:ytId(a.id),titulo:a.titulo||'Aula '+(i+1),prof:a.prof||''})).filter(a=>a.id)}
+function renderVideo(m,p){const aulas=aulasDe(m.id),comp=((typeof COMPLEMENTARES!=='undefined'&&COMPLEMENTARES[m.id])||[]).filter(c=>ytId(c.id)&&c.canal);
+  const zap=t=>`https://wa.me/${ZAP_AF}?text=${encodeURIComponent(t)}`;
+  const inscrever=`<a class="btn yt-inscrever" href="${CANAL_YT}?sub_confirmation=1" target="_blank" rel="noopener">Inscrever-se no canal</a>`;
+  const extras=(comp.length?`<h3 class="video-sub">Para ir além <small>· vídeos de outros canais</small></h3><ul class="video-comp">${comp.map(c=>`<li><a href="https://youtu.be/${c.id}" target="_blank" rel="noopener">${esc(c.titulo||'Vídeo')}</a> <span>· canal ${esc(c.canal)}</span></li>`).join('')}</ul><p class="video-nota">Conteúdo de outros autores, indicado como estudo extra. Não faz parte da prova nem do certificado.</p>`:'')
+    +`<p class="video-nota">Domina este assunto e quer gravar uma aula? <a href="professor.html">Seja professor parceiro</a>.</p>`;
+  if(!aulas.length){p.innerHTML=`<div class="video-breve"><b>Vídeo-aula em breve</b><p>A aula em vídeo desta disciplina está sendo preparada. Enquanto isso, estude pela aba Teoria e pelos exemplos resolvidos.</p>
+    <p class="presets"><a class="btn sec" href="${zap(`Olá! Quero ser avisado quando sair a vídeo-aula de ${m.nome} na Academia Foster.`)}" target="_blank" rel="noopener">Quero ser avisado</a>${inscrever}</p></div>${extras}`;return}
+  const k=Math.min(st.aula&&st.aula.mod===m.id?st.aula.k:0,aulas.length-1),a=aulas[k];
+  p.innerHTML=(aulas.length>1?`<div class="calcs" role="tablist" aria-label="Aulas desta disciplina">${aulas.map((x,i)=>`<button class="calc-op${i===k?' on':''}" data-aula="${i}" role="tab" aria-selected="${i===k}">${esc(x.titulo)}</button>`).join('')}</div>`:'')
+  +`<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${a.id}?rel=0&modestbranding=1" title="Vídeo-aula: ${esc(m.nome)} · ${esc(a.titulo)}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+  <p class="video-nota">${a.prof?`Professor parceiro: <b>${esc(a.prof)}</b> · `:''}Precisa de internet para assistir. <a href="https://youtu.be/${a.id}" target="_blank" rel="noopener">Abrir no YouTube</a></p>
+  <p class="presets">${inscrever}</p>${extras}`;
+  p.querySelectorAll('[data-aula]').forEach(b=>b.onclick=()=>{st.aula={mod:m.id,k:+b.dataset.aula};render()})}
 function renderExemplos(m,p){
   const ex=[{nivel:'medio',titulo:null,html:m.exemplo},...(m.exemplos||[])];
   const idx=Math.min(st.ex||0,ex.length-1);

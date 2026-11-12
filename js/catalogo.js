@@ -470,4 +470,11 @@ quiz:[{p:"O que é o centroide de uma seção?",o:["O ponto de equilíbrio da á
 ];
 
 // Vídeo-aulas no YouTube (canal Academia Foster). Para incluir uma aula nova, coloque aqui o código do link youtu.be/CODIGO.
+// Disciplina com mais de uma aula: use uma lista, por exemplo  rm:[{ id:'CODIGO1',titulo:'Aula 1 · Reações'},{ id:'CODIGO2',titulo:'Aula 2 · Momento'}]
+// Aula de professor parceiro: acrescente prof:'Nome' na aula (ex.: { id:'CODIGO',titulo:'Aula 2',prof:'Eng. Fulano'}).
 const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns',mc:'scWew_sg_cU',tp:'olD9dmAPC7E',or:'zVRDJ39NCq0',lj:'qHUNz6HJ19o',ma:'wHF61AL737E'};
+
+// Vídeos de outros canais do YouTube indicados como estudo extra (aparecem em "Para ir além", com o nome do canal).
+// Use só vídeos públicos que o canal deixa incorporar. Eles não contam para a prova nem para o certificado.
+// Exemplo:  rm:[{ id:'CODIGO',titulo:'Diagrama de momento passo a passo',canal:'Nome do Canal'}]
+const COMPLEMENTARES={};
