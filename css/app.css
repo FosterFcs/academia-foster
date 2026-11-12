@@ -228,3 +228,7 @@ details.mini summary{cursor:pointer;color:var(--steel);font-weight:600}
 .video-nota{color:var(--muted);font-size:.92em}
 .video-breve{border:2px dashed var(--line);border-radius:12px;padding:22px;max-width:68ch}
 .video-breve b{display:block;font-size:1.1em;margin-bottom:6px}
+.yt-inscrever{background:#c4302b;border-color:#c4302b;color:#fff}
+.video-sub{margin:22px 0 6px;font-size:1.05em}.video-sub small{color:var(--muted);font-weight:400}
+.video-comp{padding-left:20px;margin:0 0 6px}.video-comp li{margin:4px 0}.video-comp span{color:var(--muted);font-size:.92em}
+a.btn{display:inline-block;text-decoration:none}
