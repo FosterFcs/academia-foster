@@ -10,6 +10,7 @@ node testes/onda3.test.js
 node testes/conteudo.test.js
 node testes/fase2.test.js
 node testes/fase3.test.js
+node testes/videos.test.js
 python3 ferramentas/empacotar.py
 python3 testes/interface.py
 python3 testes/bancada_sig.py
@@ -17,6 +18,8 @@ python3 testes/pwa.py
 python3 testes/conta.py
 python3 testes/certificacao_banco.py
 python3 testes/certificacao.py
+python3 testes/videos.py
 python3 testes/interface.py --arquivo
 python3 testes/bancada_sig.py --arquivo
+python3 testes/videos.py --arquivo
 echo "Tudo certo."

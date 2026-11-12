@@ -232,3 +232,6 @@ details.mini summary{cursor:pointer;color:var(--steel);font-weight:600}
 .video-sub{margin:22px 0 6px;font-size:1.05em}.video-sub small{color:var(--muted);font-weight:400}
 .video-comp{padding-left:20px;margin:0 0 6px}.video-comp li{margin:4px 0}.video-comp span{color:var(--muted);font-size:.92em}
 a.btn{display:inline-block;text-decoration:none}
+.card-mod .tag-video{grid-column:3;font-family:var(--f-mono);font-size:.66rem;color:#c4302b;font-weight:600;white-space:nowrap}
+.video-depois{margin:14px 0 4px;padding:12px 14px;border-left:4px solid var(--amber);background:var(--sheet);display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;max-width:960px}
+.video-depois .btn{margin-left:auto}

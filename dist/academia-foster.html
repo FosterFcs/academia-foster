@@ -236,6 +236,9 @@ details.mini summary{cursor:pointer;color:var(--steel);font-weight:600}
 .video-sub{margin:22px 0 6px;font-size:1.05em}.video-sub small{color:var(--muted);font-weight:400}
 .video-comp{padding-left:20px;margin:0 0 6px}.video-comp li{margin:4px 0}.video-comp span{color:var(--muted);font-size:.92em}
 a.btn{display:inline-block;text-decoration:none}
+.card-mod .tag-video{grid-column:3;font-family:var(--f-mono);font-size:.66rem;color:#c4302b;font-weight:600;white-space:nowrap}
+.video-depois{margin:14px 0 4px;padding:12px 14px;border-left:4px solid var(--amber);background:var(--sheet);display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;max-width:960px}
+.video-depois .btn{margin-left:auto}
 
 </style>
 <div class="wrap">
@@ -1084,7 +1087,7 @@ const VIDEOS={is:'JwEcx4nBsuI',ca:'7_Q58AGMb7k',gt:'XVK2g52A3pc',hd:'8Om0HgyDGns
 const COMPLEMENTARES={};
 
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.10.0';
+const VERSAO_APP='1.11.0';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -1152,9 +1155,9 @@ function trilha(){
   $('stN').textContent=MODS.length;$('stMod').textContent=`${feitos} CONCLUÍDAS`;$('stQuiz').textContent=`${ok}/${MODS.reduce((t,m)=>t+m.quiz.length,0)} certas`;$('stSim').textContent=simulado&&simulado.fim?`${simulado.ok}/10`:'—';
 }
 function renderInicio(){
-  $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">Início · ${MODS.length} disciplinas em ${AREAS.length} áreas</span><h2>O que você quer aprender hoje?</h2></div>
+  $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">Início · ${MODS.length} disciplinas em ${AREAS.length} áreas · ${MODS.filter(m=>aulasDe(m.id).length).length} com vídeo-aula</span><h2>O que você quer aprender hoje?</h2></div>
   <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, três exemplos resolvidos (do básico ao caso de obra), simulador com desenho e memorial de cálculo, a aba <b>Na obra</b> com erros comuns e checklist de fiscalização, um quiz de 15 questões e certificado de 4 horas para quem passar na prova. No fim, teste tudo no simulado geral.</p>
-  <div class="areas">${AREAS.map(([n,ids])=>`<div class="area"><h3>${n}</h3>${ids.map(id=>{const m=modById(id);return `<button class="card-mod" data-m="${id}"><span class="cod">${m.cod}</span><b>${m.nome}</b>${tagMod(m)}<small>${m.titulo}</small></button>`}).join('')}</div>`).join('')}</div>
+  <div class="areas">${AREAS.map(([n,ids])=>`<div class="area"><h3>${n}</h3>${ids.map(id=>{const m=modById(id);return `<button class="card-mod" data-m="${id}"><span class="cod">${m.cod}</span><b>${m.nome}</b>${tagMod(m)}${aulasDe(m.id).length?'<span class="tag-video" title="Tem vídeo-aula">▶ vídeo</span>':''}<small>${m.titulo}</small></button>`}).join('')}</div>`).join('')}</div>
   ${PROX.length?`<h3>Próximas disciplinas</h3><div class="presets">${PROX.map(p=>`<span class="chip off">${p}</span>`).join('')}</div>`:''}
   <div><button class="btn" data-m="sim">Fazer o simulado geral</button></div></section>`;
   bindNav($('main'));
@@ -1214,7 +1217,9 @@ function renderVideo(m,p){const aulas=aulasDe(m.id),comp=((typeof COMPLEMENTARES
   p.innerHTML=(aulas.length>1?`<div class="calcs" role="tablist" aria-label="Aulas desta disciplina">${aulas.map((x,i)=>`<button class="calc-op${i===k?' on':''}" data-aula="${i}" role="tab" aria-selected="${i===k}">${esc(x.titulo)}</button>`).join('')}</div>`:'')
   +`<div class="video"><iframe src="https://www.youtube-nocookie.com/embed/${a.id}?rel=0&modestbranding=1" title="Vídeo-aula: ${esc(m.nome)} · ${esc(a.titulo)}" loading="lazy" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
   <p class="video-nota">${a.prof?`Professor parceiro: <b>${esc(a.prof)}</b> · `:''}Precisa de internet para assistir. <a href="https://youtu.be/${a.id}" target="_blank" rel="noopener">Abrir no YouTube</a></p>
+  <div class="video-depois"><b>Assistiu?</b> Confira o que aprendeu no quiz e, se for bem, faça a prova do certificado. <button class="btn" id="irQuiz">Fazer o quiz</button></div>
   <p class="presets">${inscrever}</p>${extras}`;
+  const q=$('irQuiz');if(q)q.onclick=()=>{st.tab='quiz';render();$('main').scrollIntoView({block:'start',behavior:'smooth'})};
   p.querySelectorAll('[data-aula]').forEach(b=>b.onclick=()=>{st.aula={mod:m.id,k:+b.dataset.aula};render()})}
 function renderExemplos(m,p){
   const ex=[{nivel:'medio',titulo:null,html:m.exemplo},...(m.exemplos||[])];
