@@ -1,5 +1,5 @@
 // Núcleo do app: utilitários de desenho, estado, navegação, carregamento das disciplinas e recursos de PWA.
-const VERSAO_APP='1.9.1';
+const VERSAO_APP='1.9.2';
 const $=id=>document.getElementById(id);
 const br=(n,d=2)=>Number(n).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
 const R$=n=>'R$ '+br(n);
@@ -68,6 +68,15 @@ function trilha(){
 }
 function renderInicio(){
   $('main').innerHTML=`<div class="mod-head"><span class="eyebrow">Início · ${MODS.length} disciplinas em ${AREAS.length} áreas</span><h2>O que você quer aprender hoje?</h2></div>
+  <section class="cert-banner" aria-label="Como funciona o certificado">
+    <div class="cb-tit"><span class="eyebrow">Estudo grátis · certificado opcional</span><h3>Certificado de 4 horas por disciplina</h3><p>Para horas complementares ou atividades extracurriculares. Pode juntar 5 ou mais disciplinas aprovadas num Certificado de Conclusão.</p></div>
+    <ol class="cb-passos">
+      <li><b>1</b><span><strong>Estude grátis</strong>Teoria, exemplos, simulador e quiz, sem conta.</span></li>
+      <li><b>2</b><span><strong>Faça a prova</strong>10 questões sorteadas, aprovado com 6 acertos.</span></li>
+      <li><b>3</b><span><strong>Receba o certificado</strong>PDF com QR Code para a faculdade conferir.</span></li>
+    </ol>
+    <p class="cb-nota">Antes de estudar para as horas, confira no regulamento do seu curso se a instituição aceita cursos livres on-line e quantas horas conta por certificado.</p>
+  </section>
   <section class="painel"><p>Cada disciplina tem teoria em linguagem simples, três exemplos resolvidos (do básico ao caso de obra), simulador com desenho e memorial de cálculo, a aba <b>Na obra</b> com erros comuns e checklist de fiscalização, um quiz de 15 questões e certificado de 4 horas para quem passar na prova. No fim, teste tudo no simulado geral.</p>
   <div class="areas">${AREAS.map(([n,ids])=>`<div class="area"><h3>${n}</h3>${ids.map(id=>{const m=modById(id);return `<button class="card-mod" data-m="${id}"><span class="cod">${m.cod}</span><b>${m.nome}</b>${tagMod(m)}<small>${m.titulo}</small></button>`}).join('')}</div>`).join('')}</div>
   ${PROX.length?`<h3>Próximas disciplinas</h3><div class="presets">${PROX.map(p=>`<span class="chip off">${p}</span>`).join('')}</div>`:''}
